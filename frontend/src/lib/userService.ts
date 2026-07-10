@@ -303,23 +303,22 @@ export const checkUserBan = (user: FirestoreUser): { banned: boolean; until?: Da
   return { banned: false };
 };
 
-/**
- * Admin: Fetches all registered users who have clicked START (sorted by points).
- */
 export const getAllUsers = async (): Promise<FirestoreUser[]> => {
   if (!isFirebaseConfigured()) return [];
   try {
-    const querySnapshot = await getDocs(
-      query(
-        collection(db, USERS_COLLECTION),
-        where('hasStarted', '==', true),
-        orderBy('points', 'desc')
-      )
-    );
+    const querySnapshot = await getDocs(collection(db, USERS_COLLECTION));
     const users: FirestoreUser[] = [];
-    querySnapshot.forEach((docSnap) => users.push(docSnap.data() as FirestoreUser));
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data() as FirestoreUser;
+      if (data.hasStarted) {
+        users.push(data);
+      }
+    });
+    // Sort in-memory by points descending
+    users.sort((a, b) => (b.points || 0) - (a.points || 0));
     return users;
-  } catch {
+  } catch (err) {
+    console.error("Error in getAllUsers:", err);
     return [];
   }
 };
