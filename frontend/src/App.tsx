@@ -46,10 +46,10 @@ export default function App() {
   };
 
   // State Declarations
-  const [efcBalance, setEfcBalance] = useState<number>(() => getPersisted('efcBalance', 4820));
+  const [efcBalance, setEfcBalance] = useState<number>(() => getPersisted('efcBalance', 0));
   const [eforceTokens, setEforceTokens] = useState<number>(() => getPersisted('eforceTokens', 0));
-  const [usdtBalance, setUsdtBalance] = useState<number>(() => getPersisted('usdtBalance', 38.50));
-  const [referralsCount, setReferralsCount] = useState<number>(() => getPersisted('referralsCount', 8));
+  const [usdtBalance, setUsdtBalance] = useState<number>(() => getPersisted('usdtBalance', 0.00));
+  const [referralsCount, setReferralsCount] = useState<number>(() => getPersisted('referralsCount', 0));
   const [hasUnlockedWithdrawal, setHasUnlockedWithdrawal] = useState<boolean>(() => getPersisted('hasUnlockedWithdrawal', false));
   const [energy, setEnergy] = useState<number>(() => getPersisted('energy', 1000));
   const [maxEnergy] = useState<number>(1000);
