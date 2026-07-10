@@ -215,22 +215,8 @@ export const Settings = ({ showToast }: SettingsProps) => {
         </div>
       </div>
 
-      {/* Admin Dashboard Entry Card */}
-      <div 
-        onClick={() => window.history.pushState({}, '', '/admin-login')}
-        className="glass-panel p-5 rounded-[24px] border-white/6 flex items-center justify-between bg-accent-purple/5 hover:bg-accent-purple/10 border border-accent-purple/10 transition-all cursor-pointer"
-      >
-        <div>
-          <span className="text-[9px] text-accent-purple uppercase tracking-widest font-black block mb-1">Elite Force Management</span>
-          <h2 className="text-sm font-bold text-white mb-0.5">Admin Console Dashboard</h2>
-          <p className="text-[10px] text-slate-400">Access protected ecosystem logs, balances & swaps</p>
-        </div>
-        <div className="p-2.5 rounded-xl bg-accent-purple/10 text-accent-purple shrink-0">
-          <Shield size={16} />
-        </div>
-      </div>
-
 
     </div>
   );
 };
+
