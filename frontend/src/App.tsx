@@ -19,11 +19,49 @@ interface Toast {
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
-  const [efcBalance, setEfcBalance] = useState(4820);
-  const [usdtBalance, setUsdtBalance] = useState(38.50);
-  const [hasUnlockedWithdrawal, setHasUnlockedWithdrawal] = useState(false);
-  const [toasts, setToasts] = useState<Toast[]>([]);
   
+  // Persisted state loading helper
+  const getPersisted = <T,>(key: string, defaultValue: T): T => {
+    const val = localStorage.getItem(key);
+    if (val === null) return defaultValue;
+    try {
+      return JSON.parse(val) as T;
+    } catch {
+      return defaultValue;
+    }
+  };
+
+  // State Declarations with Persisted Fallbacks
+  const [efcBalance, setEfcBalance] = useState<number>(() => getPersisted('efcBalance', 4820));
+  const [eforceTokens, setEforceTokens] = useState<number>(() => getPersisted('eforceTokens', 0));
+  const [usdtBalance, setUsdtBalance] = useState<number>(() => getPersisted('usdtBalance', 38.50));
+  const [referralsCount, setReferralsCount] = useState<number>(() => getPersisted('referralsCount', 8));
+  const [hasUnlockedWithdrawal, setHasUnlockedWithdrawal] = useState<boolean>(() => getPersisted('hasUnlockedWithdrawal', false));
+  const [energy, setEnergy] = useState<number>(() => getPersisted('energy', 1000));
+  const [maxEnergy] = useState<number>(1000);
+  
+  // Admin-controlled settings
+  const [swapOpen, setSwapOpen] = useState<boolean>(() => getPersisted('swapOpen', false));
+  const [swapRate, setSwapRate] = useState<number>(() => getPersisted('swapRate', 1000));
+  const [tokenSale, setTokenSale] = useState(() => getPersisted('tokenSale', {
+    active: false,
+    price: 0.05,
+    totalSold: 0,
+    totalSupply: 500000,
+    minPurchase: 10,
+    maxPurchase: 1000
+  }));
+  const [connectedWallet, setConnectedWallet] = useState<string | null>(() => getPersisted<string | null>('connectedWallet', null));
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(() => getPersisted<string | null>('connectedAddress', null));
+
+  // Shared requests ledger
+  const [withdrawRequests, setWithdrawRequests] = useState<{ id: string; user: string; amount: number; status: 'Pending' | 'Approved' | 'Rejected' | 'Banned'; date: string }[]>(() => getPersisted('withdrawRequests', [
+    { id: '1092', user: 'ton_miner_88', amount: 45.0, status: 'Pending', date: 'Just Now' },
+    { id: '1091', user: 'crypto_champ', amount: 15.0, status: 'Pending', date: '10 mins ago' },
+    { id: '1090', user: 'bot_spammer_32', amount: 120.0, status: 'Pending', date: '1 hour ago' },
+    { id: '1089', user: 'vip_holder_9', amount: 50.0, status: 'Approved', date: '3 hours ago' },
+  ]));
+
   // Generate random background particles
   const [bgParticles] = useState(() => 
     Array.from({ length: 12 }).map((_, i) => ({
@@ -35,8 +73,59 @@ export default function App() {
     }))
   );
 
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Auto-persist updates
   useEffect(() => {
-    // Simulate luxury preloader
+    localStorage.setItem('efcBalance', JSON.stringify(efcBalance));
+  }, [efcBalance]);
+  useEffect(() => {
+    localStorage.setItem('eforceTokens', JSON.stringify(eforceTokens));
+  }, [eforceTokens]);
+  useEffect(() => {
+    localStorage.setItem('usdtBalance', JSON.stringify(usdtBalance));
+  }, [usdtBalance]);
+  useEffect(() => {
+    localStorage.setItem('referralsCount', JSON.stringify(referralsCount));
+  }, [referralsCount]);
+  useEffect(() => {
+    localStorage.setItem('hasUnlockedWithdrawal', JSON.stringify(hasUnlockedWithdrawal));
+  }, [hasUnlockedWithdrawal]);
+  useEffect(() => {
+    localStorage.setItem('energy', JSON.stringify(energy));
+  }, [energy]);
+  useEffect(() => {
+    localStorage.setItem('swapOpen', JSON.stringify(swapOpen));
+  }, [swapOpen]);
+  useEffect(() => {
+    localStorage.setItem('swapRate', JSON.stringify(swapRate));
+  }, [swapRate]);
+  useEffect(() => {
+    localStorage.setItem('tokenSale', JSON.stringify(tokenSale));
+  }, [tokenSale]);
+  useEffect(() => {
+    localStorage.setItem('connectedWallet', JSON.stringify(connectedWallet));
+  }, [connectedWallet]);
+  useEffect(() => {
+    localStorage.setItem('connectedAddress', JSON.stringify(connectedAddress));
+  }, [connectedAddress]);
+  useEffect(() => {
+    localStorage.setItem('withdrawRequests', JSON.stringify(withdrawRequests));
+  }, [withdrawRequests]);
+
+  // Energy Regeneration Loop (+3 energy per second)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setEnergy(prev => {
+        if (prev >= maxEnergy) return maxEnergy;
+        return Math.min(prev + 3, maxEnergy);
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [maxEnergy]);
+
+  // Preloader
+  useEffect(() => {
     const timer = setTimeout(() => {
       setLoading(false);
     }, 2500);
@@ -46,8 +135,6 @@ export default function App() {
   const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info') => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);
-    
-    // Auto-remove toast after 3 seconds
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 3000);
@@ -61,13 +148,17 @@ export default function App() {
             efcBalance={efcBalance} 
             setEfcBalance={setEfcBalance} 
             usdtBalance={usdtBalance} 
+            energy={energy}
+            setEnergy={setEnergy}
+            maxEnergy={maxEnergy}
+            referralsCount={referralsCount}
             showToast={showToast} 
           />
         );
       case 'tasks':
         return (
           <Tasks 
-            efcBalance={efcBalance} 
+            efcBalance={efcBalance}
             setEfcBalance={setEfcBalance} 
             showToast={showToast} 
           />
@@ -79,6 +170,8 @@ export default function App() {
             setEfcBalance={setEfcBalance} 
             hasUnlockedWithdrawal={hasUnlockedWithdrawal} 
             setHasUnlockedWithdrawal={setHasUnlockedWithdrawal} 
+            referralsCount={referralsCount}
+            setReferralsCount={setReferralsCount}
           />
         );
       case 'wallet':
@@ -86,18 +179,48 @@ export default function App() {
           <Wallet 
             efcBalance={efcBalance} 
             setEfcBalance={setEfcBalance} 
+            eforceTokens={eforceTokens}
+            setEforceTokens={setEforceTokens}
             usdtBalance={usdtBalance} 
             setUsdtBalance={setUsdtBalance} 
+            swapOpen={swapOpen}
+            swapRate={swapRate}
+            tokenSale={tokenSale}
+            setTokenSale={setTokenSale}
+            connectedWallet={connectedWallet}
+            setConnectedWallet={setConnectedWallet}
+            connectedAddress={connectedAddress}
+            setConnectedAddress={setConnectedAddress}
+            withdrawRequests={withdrawRequests}
+            setWithdrawRequests={setWithdrawRequests}
             showToast={showToast} 
             hasUnlockedWithdrawal={hasUnlockedWithdrawal} 
           />
         );
       case 'profile':
-        return <Profile efcBalance={efcBalance} showToast={showToast} />;
+        return (
+          <Profile 
+            efcBalance={efcBalance} 
+            connectedAddress={connectedAddress}
+            showToast={showToast} 
+          />
+        );
       case 'settings':
         return <Settings showToast={showToast} />;
       case 'admin':
-        return <Admin showToast={showToast} />;
+        return (
+          <Admin 
+            swapOpen={swapOpen}
+            setSwapOpen={setSwapOpen}
+            swapRate={swapRate}
+            setSwapRate={setSwapRate}
+            tokenSale={tokenSale}
+            setTokenSale={setTokenSale}
+            withdrawRequests={withdrawRequests}
+            setWithdrawRequests={setWithdrawRequests}
+            showToast={showToast} 
+          />
+        );
       default:
         return null;
     }

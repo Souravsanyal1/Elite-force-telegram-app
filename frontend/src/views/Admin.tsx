@@ -1,29 +1,46 @@
 import { useState } from 'react';
 import { TrendingUp, Users, Check, X, Search, FileText, Ban } from 'lucide-react';
 
+interface TokenSaleType {
+  active: boolean;
+  price: number;
+  totalSold: number;
+  totalSupply: number;
+  minPurchase: number;
+  maxPurchase: number;
+}
+
 interface AdminProps {
+  swapOpen: boolean;
+  setSwapOpen: (val: boolean) => void;
+  swapRate: number;
+  setSwapRate: (val: number) => void;
+  tokenSale: TokenSaleType;
+  setTokenSale: React.Dispatch<React.SetStateAction<TokenSaleType>>;
+  withdrawRequests: Array<{ id: string; user: string; amount: number; status: 'Pending' | 'Approved' | 'Rejected' | 'Banned'; date: string }>;
+  setWithdrawRequests: React.Dispatch<React.SetStateAction<any[]>>;
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
-interface WithdrawRequest {
-  id: string;
-  user: string;
-  amount: number;
-  status: 'Pending' | 'Approved' | 'Rejected' | 'Banned';
-  date: string;
-}
-
-export const Admin: React.FC<AdminProps> = ({ showToast }) => {
+export const Admin: React.FC<AdminProps> = ({ 
+  swapOpen,
+  setSwapOpen,
+  swapRate,
+  setSwapRate,
+  tokenSale,
+  setTokenSale,
+  withdrawRequests,
+  setWithdrawRequests,
+  showToast 
+}) => {
   const [search, setSearch] = useState('');
-  const [requests, setRequests] = useState<WithdrawRequest[]>([
-    { id: '1092', user: 'ton_miner_88', amount: 45.0, status: 'Pending', date: 'Just Now' },
-    { id: '1091', user: 'crypto_champ', amount: 15.0, status: 'Pending', date: '10 mins ago' },
-    { id: '1090', user: 'bot_spammer_32', amount: 120.0, status: 'Pending', date: '1 hour ago' },
-    { id: '1089', user: 'vip_holder_9', amount: 50.0, status: 'Approved', date: '3 hours ago' },
-  ]);
+
+  // Local token sale configurator form
+  const [icoPrice, setIcoPrice] = useState(tokenSale.price.toString());
+  const [icoSupply, setIcoSupply] = useState(tokenSale.totalSupply.toString());
 
   const handleAction = (requestId: string, action: 'Approved' | 'Rejected' | 'Banned') => {
-    setRequests(prev => prev.map(req => {
+    setWithdrawRequests(prev => prev.map(req => {
       if (req.id === requestId) {
         if (action === 'Approved') {
           showToast(`Request #${requestId} has been APPROVED! Funds sent.`, 'success');
@@ -39,10 +56,10 @@ export const Admin: React.FC<AdminProps> = ({ showToast }) => {
   };
 
   const handleExport = () => {
-    showToast("Generating ledger report: EliteForce_Withdrawals.csv exported!", "success");
+    showToast("Generating ledger report: EForce_Withdrawals.csv exported!", "success");
   };
 
-  const filteredRequests = requests.filter(req => 
+  const filteredRequests = withdrawRequests.filter(req => 
     req.user.toLowerCase().includes(search.toLowerCase()) || 
     req.id.includes(search)
   );
@@ -132,6 +149,104 @@ export const Admin: React.FC<AdminProps> = ({ showToast }) => {
             <span>Fri</span>
             <span>Sat</span>
             <span>Sun</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Admin Controlled Swap Settings */}
+      <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-4">
+        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Swap Gateway Controller</span>
+        
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs font-bold text-white">Swap Portal Status</span>
+            <span className="text-[10px] text-slate-500">Allow users to swap EForce Points to EForce Tokens</span>
+          </div>
+          <button 
+            onClick={() => {
+              setSwapOpen(!swapOpen);
+              showToast(swapOpen ? "EForce Swap Portal Closed" : "EForce Swap Portal Opened!", "success");
+            }}
+            className={`w-11 h-6 rounded-full p-1 transition-colors cursor-pointer duration-300 ${swapOpen ? 'bg-accent-success' : 'bg-white/10'}`}
+          >
+            <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${swapOpen ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
+        </div>
+
+        <div className="w-full h-[1px] bg-white/5"></div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs font-bold text-white">Conversion Rate</span>
+            <span className="text-[10px] text-slate-500">Number of points needed per 1 EForce Token</span>
+          </div>
+          <input
+            type="number"
+            value={swapRate}
+            onChange={(e) => {
+              const val = parseInt(e.target.value);
+              if (!isNaN(val) && val > 0) {
+                setSwapRate(val);
+              }
+            }}
+            className="w-20 bg-[#12182D] border border-white/8 text-slate-300 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:border-accent-cyan outline-none text-center"
+          />
+        </div>
+      </div>
+
+      {/* Admin Controlled Token Sale Configurator */}
+      <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-4">
+        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Token Sale Manager</span>
+        
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs font-bold text-white">EForce ICO Status</span>
+            <span className="text-[10px] text-slate-500">Toggle public EForce Token crowdsale</span>
+          </div>
+          <button 
+            onClick={() => {
+              setTokenSale(prev => ({ ...prev, active: !prev.active }));
+              showToast(tokenSale.active ? "Token Sale Closed" : "Token Sale Activated!", "success");
+            }}
+            className={`w-11 h-6 rounded-full p-1 transition-colors cursor-pointer duration-300 ${tokenSale.active ? 'bg-accent-success' : 'bg-white/10'}`}
+          >
+            <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${tokenSale.active ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
+        </div>
+
+        <div className="w-full h-[1px] bg-white/5"></div>
+
+        <div className="grid grid-cols-2 gap-3.5">
+          <div className="flex flex-col gap-1">
+            <span className="text-[9px] text-slate-500 uppercase tracking-wider font-bold">ICO Token Price ($USDT)</span>
+            <input
+              type="text"
+              value={icoPrice}
+              onChange={(e) => {
+                setIcoPrice(e.target.value);
+                const priceNum = parseFloat(e.target.value);
+                if (!isNaN(priceNum) && priceNum > 0) {
+                  setTokenSale(prev => ({ ...prev, price: priceNum }));
+                }
+              }}
+              className="bg-[#12182D] border border-white/8 text-slate-300 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:border-accent-cyan outline-none text-center"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <span className="text-[9px] text-slate-500 uppercase tracking-wider font-bold">Total Supply Cap</span>
+            <input
+              type="text"
+              value={icoSupply}
+              onChange={(e) => {
+                setIcoSupply(e.target.value);
+                const capNum = parseInt(e.target.value);
+                if (!isNaN(capNum) && capNum > 0) {
+                  setTokenSale(prev => ({ ...prev, totalSupply: capNum }));
+                }
+              }}
+              className="bg-[#12182D] border border-white/8 text-slate-300 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:border-accent-cyan outline-none text-center"
+            />
           </div>
         </div>
       </div>

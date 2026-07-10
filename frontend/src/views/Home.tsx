@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Trophy, Flame, ChevronRight, Zap } from 'lucide-react';
+import { Sparkles, Trophy, Flame, ChevronRight, Zap, X, Bolt } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface HomeProps {
   efcBalance: number;
   setEfcBalance: React.Dispatch<React.SetStateAction<number>>;
   usdtBalance: number;
+  energy: number;
+  setEnergy: React.Dispatch<React.SetStateAction<number>>;
+  maxEnergy: number;
+  referralsCount: number;
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
@@ -14,17 +18,68 @@ interface FloatingText {
   id: number;
   x: number;
   y: number;
+  value: number;
 }
 
-export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalance, showToast }) => {
+export const Home: React.FC<HomeProps> = ({ 
+  efcBalance, 
+  setEfcBalance, 
+  usdtBalance, 
+  energy, 
+  setEnergy, 
+  maxEnergy,
+  referralsCount,
+  showToast 
+}) => {
   const [isSpinning, setIsSpinning] = useState(false);
   const [clicks, setClicks] = useState<FloatingText[]>([]);
   const [dailyClaimed, setDailyClaimed] = useState(false);
   const [dailyStreak, setDailyStreak] = useState(4); // 4 days streak
 
+  // Combo system
+  const [combo, setCombo] = useState(0);
+  const [lastTapTime, setLastTapTime] = useState(0);
+
+  // Auto-tap booster state
+  const [autoTapActive, setAutoTapActive] = useState(false);
+
+  // Leaderboard Modal State
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboardTab, setLeaderboardTab] = useState<'tap' | 'referral'>('tap');
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState<'today' | 'weekly' | 'monthly' | 'alltime'>('weekly');
+
+  // Auto Tap logic (+5 points per second when active)
+  useEffect(() => {
+    if (!autoTapActive) return;
+    const interval = setInterval(() => {
+      setEfcBalance(prev => prev + 5);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [autoTapActive, setEfcBalance]);
+
+  // Click handler
   const handleCoinClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (energy <= 0) {
+      showToast('No energy remaining! Wait for regeneration or use a Boost.', 'warning');
+      return;
+    }
+
+    const now = Date.now();
+    let nextCombo = 1;
+    if (now - lastTapTime < 800) {
+      nextCombo = combo + 1;
+    }
+    setCombo(nextCombo);
+    setLastTapTime(now);
+
+    // Multiplier threshold
+    let tapMultiplier = 1;
+    if (nextCombo > 25) tapMultiplier = 5;
+    else if (nextCombo > 10) tapMultiplier = 2;
+
     setIsSpinning(true);
-    setEfcBalance(prev => prev + 1);
+    setEfcBalance(prev => prev + tapMultiplier);
+    setEnergy(prev => Math.max(prev - 1, 0));
 
     // Get click coords relative to the coin card
     const rect = e.currentTarget.getBoundingClientRect();
@@ -32,7 +87,7 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
     const y = e.clientY - rect.top;
 
     const clickId = Date.now();
-    setClicks(prev => [...prev, { id: clickId, x, y }]);
+    setClicks(prev => [...prev, { id: clickId, x, y, value: tapMultiplier }]);
 
     setTimeout(() => {
       setIsSpinning(false);
@@ -65,6 +120,40 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
     });
   };
 
+  const handleEnergyRefill = () => {
+    setEnergy(maxEnergy);
+    showToast('Energy fully recharged!', 'success');
+    confetti({
+      particleCount: 30,
+      spread: 40,
+      origin: { y: 0.8 },
+      colors: ['#00E5FF', '#00FF88']
+    });
+  };
+
+  // Mock leaderboard users
+  const tapLeaderboardData = [
+    { rank: 1, name: 'ton_whale_99', points: 984500, referrals: 245, premium: true },
+    { rank: 2, name: 'ether_king', points: 843200, referrals: 189, premium: false },
+    { rank: 3, name: 'crypto_champ', points: 721900, referrals: 154, premium: true },
+    { rank: 4, name: 'Sourav Sanyal (You)', points: efcBalance, referrals: referralsCount, premium: true },
+    { rank: 5, name: 'sol_sniper', points: 412500, referrals: 92, premium: false },
+    { rank: 6, name: 'duck_miner', points: 389400, referrals: 81, premium: false },
+  ];
+
+  const referralLeaderboardData = [
+    { rank: 1, name: 'referral_god', points: 910000, referrals: 412, premium: true },
+    { rank: 2, name: 'ton_whale_99', points: 984500, referrals: 245, premium: true },
+    { rank: 3, name: 'ether_king', points: 843200, referrals: 189, premium: false },
+    { rank: 4, name: 'affiliate_pro', points: 512000, referrals: 110, premium: true },
+    { rank: 5, name: 'Sourav Sanyal (You)', points: efcBalance, referrals: referralsCount, premium: true },
+    { rank: 6, name: 'sol_sniper', points: 412500, referrals: 92, premium: false },
+  ];
+
+  const activeLeaderboard = leaderboardTab === 'tap' 
+    ? tapLeaderboardData.sort((a, b) => b.points - a.points)
+    : referralLeaderboardData.sort((a, b) => b.referrals - a.referrals);
+
   return (
     <div className="flex flex-col gap-6 pb-28">
       {/* Hero Greeting Section */}
@@ -79,10 +168,13 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
           </h1>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-accent-purple/10 border border-accent-purple/20 px-3 py-1.5 rounded-full shadow-[0_0_15px_rgba(179,136,255,0.06)]">
+        <button 
+          onClick={() => setShowLeaderboard(true)}
+          className="flex items-center gap-1.5 bg-accent-purple/10 border border-accent-purple/20 px-3.5 py-1.5 rounded-full shadow-[0_0_15px_rgba(179,136,255,0.06)] hover:bg-accent-purple/20 transition-all cursor-pointer"
+        >
           <Trophy size={14} className="text-accent-gold" />
-          <span className="text-xs font-bold text-accent-purple tracking-wide uppercase">Rank #42</span>
-        </div>
+          <span className="text-xs font-bold text-accent-purple tracking-wide uppercase">Leaderboard</span>
+        </button>
       </div>
 
       {/* Primary Balance Display */}
@@ -121,7 +213,14 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
 
       {/* Hero 3D Coin Section */}
       <div className="flex flex-col items-center my-2 select-none relative">
-        <span className="text-[11px] text-slate-400 mb-3 tracking-widest uppercase font-medium">Tap to Mine EForce</span>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-[11px] text-slate-400 tracking-widest uppercase font-medium">Tap to Mine EForce</span>
+          {combo > 1 && (
+            <span className="text-xs font-black text-accent-purple bg-accent-purple/10 border border-accent-purple/20 px-2 py-0.5 rounded-full animate-bounce">
+              {combo}x Combo
+            </span>
+          )}
+        </div>
         
         <div
           onClick={handleCoinClick}
@@ -175,10 +274,66 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
                 transition={{ duration: 0.8, ease: 'easeOut' }}
                 className="absolute text-xl font-black text-accent-cyan drop-shadow-[0_2px_8px_rgba(0,229,255,0.5)] z-20 pointer-events-none select-none font-display"
               >
-                +1 EForce
+                +{click.value} EForce
               </motion.span>
             ))}
           </AnimatePresence>
+        </div>
+
+        {/* Energy system stats & progress bar */}
+        <div className="w-full max-w-[240px] mt-4 flex flex-col gap-1.5 items-center">
+          <div className="flex justify-between w-full text-xs font-bold text-slate-300 px-1">
+            <span className="flex items-center gap-1">
+              <Bolt size={13} className="text-accent-gold" />
+              <span>Energy</span>
+            </span>
+            <span>{energy} / {maxEnergy}</span>
+          </div>
+          <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5 p-[1px]">
+            <div 
+              className="h-full bg-gradient-to-r from-accent-cyan via-accent-blue to-accent-purple rounded-full transition-all duration-300"
+              style={{ width: `${(energy / maxEnergy) * 100}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Boosters Panel */}
+      <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-3">
+        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">EForce Upgrades & Boosters</span>
+        <div className="grid grid-cols-2 gap-3">
+          {/* Booster 1: Auto Tap */}
+          <button
+            onClick={() => {
+              setAutoTapActive(!autoTapActive);
+              showToast(autoTapActive ? 'Auto-Tap Booster Deactivated' : 'Auto-Tap Booster Activated (+5/sec)', 'info');
+            }}
+            className={`p-3.5 rounded-[18px] border text-left flex flex-col gap-1 transition-all ${
+              autoTapActive 
+                ? 'bg-accent-cyan/10 border-accent-cyan/35 text-white' 
+                : 'bg-white/5 border-white/8 text-slate-400 hover:bg-white/10'
+            }`}
+          >
+            <span className="text-xs font-extrabold text-white flex items-center gap-1">
+              <Bolt size={12} className={autoTapActive ? 'text-accent-cyan' : 'text-slate-400'} />
+              Auto Miner
+            </span>
+            <span className="text-[9px] text-slate-400">
+              {autoTapActive ? 'Mining active...' : 'Idle - Tap to turn ON'}
+            </span>
+          </button>
+
+          {/* Booster 2: Instant Refill */}
+          <button
+            onClick={handleEnergyRefill}
+            className="p-3.5 rounded-[18px] bg-white/5 border border-white/8 hover:bg-white/10 text-left flex flex-col gap-1 transition-all"
+          >
+            <span className="text-xs font-extrabold text-white flex items-center gap-1">
+              <Zap size={12} className="text-accent-gold" />
+              Full Recharge
+            </span>
+            <span className="text-[9px] text-slate-400">Instant energy restore</span>
+          </button>
         </div>
       </div>
 
@@ -267,7 +422,7 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
       <div className="grid grid-cols-3 gap-3">
         <div className="glass-panel p-3.5 rounded-[20px] text-center border-white/5 flex flex-col justify-center items-center">
           <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">Referrals</span>
-          <span className="text-base font-bold text-white">8 / 10</span>
+          <span className="text-base font-bold text-white">{referralsCount} / 10</span>
           <span className="text-[8px] text-slate-400 mt-0.5">Active</span>
         </div>
         <div className="glass-panel p-3.5 rounded-[20px] text-center border-white/5 flex flex-col justify-center items-center">
@@ -285,6 +440,133 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
         </div>
       </div>
 
+      {/* 6. Beautiful Premium Leaderboard Modal Overlay */}
+      <AnimatePresence>
+        {showLeaderboard && (
+          <div className="absolute inset-0 z-50 flex flex-col bg-[#050816] p-5 pt-12 overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                <Trophy className="text-accent-gold" size={20} />
+                <span>EForce Hall of Fame</span>
+              </h2>
+              <button 
+                onClick={() => setShowLeaderboard(false)}
+                className="p-2 rounded-xl bg-white/5 border border-white/8 text-slate-400 hover:text-white transition-all shrink-0 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Leaderboard Tabs: Tap vs Referral */}
+            <div className="grid grid-cols-2 gap-2 bg-[#12182D] p-1 rounded-2xl border border-white/5 mb-4">
+              <button 
+                onClick={() => setLeaderboardTab('tap')}
+                className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  leaderboardTab === 'tap' 
+                    ? 'bg-accent-cyan/15 border border-accent-cyan/25 text-accent-cyan shadow' 
+                    : 'text-slate-400 hover:text-slate-300'
+                }`}
+              >
+                Tap Rank
+              </button>
+              <button 
+                onClick={() => setLeaderboardTab('referral')}
+                className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  leaderboardTab === 'referral' 
+                    ? 'bg-accent-purple/15 border border-accent-purple/25 text-accent-purple shadow' 
+                    : 'text-slate-400 hover:text-slate-300'
+                }`}
+              >
+                Referral Rank
+              </button>
+            </div>
+
+            {/* Period selector */}
+            <div className="flex gap-2 mb-4 justify-between">
+              {['today', 'weekly', 'monthly', 'alltime'].map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setLeaderboardPeriod(p as any)}
+                  className={`flex-1 py-1 rounded-lg text-[10px] uppercase font-bold border transition-all cursor-pointer ${
+                    leaderboardPeriod === p 
+                      ? 'bg-white/5 border-white/10 text-white font-black' 
+                      : 'bg-transparent border-transparent text-slate-500 hover:text-slate-400'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+
+            {/* List */}
+            <div className="flex flex-col gap-2">
+              {activeLeaderboard.map((user, idx) => {
+                const rankColor = user.rank === 1 ? 'text-accent-gold border-accent-gold/25 bg-accent-gold/5' :
+                                  user.rank === 2 ? 'text-slate-300 border-white/10 bg-white/[0.02]' :
+                                  user.rank === 3 ? 'text-[#CD7F32] border-[#CD7F32]/25 bg-[#CD7F32]/5' :
+                                  'text-slate-400 border-white/5';
+                
+                return (
+                  <div 
+                    key={idx}
+                    className={`glass-panel p-3.5 rounded-[20px] border flex items-center justify-between transition-all ${
+                      user.name.includes('(You)') ? 'border-accent-cyan/30 bg-accent-cyan/[0.005]' : 'border-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      {/* Rank circle */}
+                      <div className={`w-6 h-6 rounded-full border flex items-center justify-center text-xs font-black shrink-0 ${rankColor}`}>
+                        {user.rank}
+                      </div>
+
+                      {/* Avatar */}
+                      <div className="w-8 h-8 rounded-full bg-white/5 border border-white/8 flex items-center justify-center text-slate-300 text-xs font-bold relative shrink-0">
+                        {user.name.substring(0, 2).toUpperCase()}
+                        {user.premium && (
+                          <div className="absolute top-[-3px] right-[-3px] w-3 h-3 rounded-full bg-accent-purple flex items-center justify-center text-[7px]" title="Premium Member">
+                            ★
+                          </div>
+                        )}
+                      </div>
+
+                      {/* User Info */}
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-white flex items-center gap-1">
+                          <span className="truncate">{user.name}</span>
+                          {user.premium && (
+                            <span className="text-[9px] bg-accent-purple/15 text-accent-purple border border-accent-purple/20 px-1 rounded font-bold uppercase tracking-wider shrink-0 scale-90">
+                              Premium
+                            </span>
+                          )}
+                        </h4>
+                        <span className="text-[9px] text-slate-500 font-semibold block">
+                          Level {7 - user.rank} Node
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="text-xs font-extrabold text-white font-display block">
+                        {leaderboardTab === 'tap' 
+                          ? `${user.points.toLocaleString()} EForce` 
+                          : `${user.referrals} Affiliates`}
+                      </span>
+                      <span className="text-[8px] text-slate-500 uppercase tracking-widest font-bold">
+                        {leaderboardTab === 'tap' ? 'Mined' : 'Invites'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-6 p-4 rounded-2xl bg-white/[0.02] border border-white/5 text-center text-[10px] text-slate-500 leading-normal">
+              🏆 Leaderboard resets dynamically at 00:00 UTC. Top 100 players receive EForce Bonus Airdrop distributions weekly!
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

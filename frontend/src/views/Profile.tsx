@@ -2,21 +2,28 @@ import { Copy, ShieldCheck, Trophy, Calendar, Globe2 } from 'lucide-react';
 
 interface ProfileProps {
   efcBalance: number;
+  connectedAddress: string | null;
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
-export const Profile = ({ efcBalance, showToast }: ProfileProps) => {
-  const userAddress = "UQCs0E5F...eYhBk7dSg";
+export const Profile = ({ efcBalance, connectedAddress, showToast }: ProfileProps) => {
+  const userAddress = connectedAddress 
+    ? `${connectedAddress.slice(0, 8)}...${connectedAddress.slice(-8)}`
+    : "No Wallet Connected";
 
   const handleCopyAddress = () => {
-    navigator.clipboard.writeText("UQCs0E5F_AAF4E9ez9k5vTfeYhBk7dSg_EForce_Custody");
+    if (!connectedAddress) {
+      showToast("Please connect a wallet first!", "warning");
+      return;
+    }
+    navigator.clipboard.writeText(connectedAddress);
     showToast("Wallet address copied to clipboard!", "success");
   };
 
   const achievements = [
     { name: "First Mine", desc: "Mined EForce coin for the first time", completed: true, badgeColor: "text-accent-cyan" },
     { name: "Affiliate Recruit", desc: "Invited 5 active members to the force", completed: true, badgeColor: "text-accent-purple" },
-    { name: "Node Authorizer", desc: "Unlocked cryptocurrency withdrawal gateway", completed: false, badgeColor: "text-slate-500" },
+    { name: "Node Authorizer", desc: "Unlocked cryptocurrency withdrawal gateway", completed: connectedAddress !== null, badgeColor: connectedAddress !== null ? "text-accent-gold" : "text-slate-500" },
     { name: "Grandmaster Miner", desc: "Accumulated more than 10,000 EForce", completed: efcBalance >= 10000, badgeColor: efcBalance >= 10000 ? "text-accent-gold" : "text-slate-500" },
   ];
 
@@ -59,18 +66,25 @@ export const Profile = ({ efcBalance, showToast }: ProfileProps) => {
       {/* Wallet Connection Node */}
       <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-3">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-slate-400 font-medium">TON Connected Node</span>
-          <span className="text-accent-success font-semibold flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent-success animate-ping"></span>
-            Connected
-          </span>
+          <span className="text-slate-400 font-medium">BEP-20 Connected Node</span>
+          {connectedAddress ? (
+            <span className="text-accent-success font-semibold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-accent-success animate-ping"></span>
+              Connected
+            </span>
+          ) : (
+            <span className="text-slate-500 font-semibold flex items-center gap-1">
+              Disconnected
+            </span>
+          )}
         </div>
 
         <div className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-xl p-2.5">
           <span className="text-xs font-mono text-slate-400">{userAddress}</span>
           <button
             onClick={handleCopyAddress}
-            className="p-1.5 rounded-lg bg-white/5 border border-white/8 text-slate-400 hover:text-white transition-all shrink-0 cursor-pointer"
+            disabled={!connectedAddress}
+            className="p-1.5 rounded-lg bg-white/5 border border-white/8 text-slate-400 hover:text-white transition-all shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <Copy size={13} />
           </button>

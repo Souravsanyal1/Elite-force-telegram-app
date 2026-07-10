@@ -1,5 +1,7 @@
-import { useState, ComponentType } from 'react';
+import { useState, useEffect, ComponentType } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { Check, Loader2, Sparkles, Send, Twitter, ShieldAlert, Globe, Compass } from 'lucide-react';
+import confetti from 'canvas-confetti';
 
 interface Task {
   id: string;
@@ -140,6 +142,9 @@ export const Tasks = ({ setEfcBalance, showToast }: TasksProps) => {
         </div>
       </div>
 
+      {/* 7. Rewarded Ads System */}
+      <RewardedAds setEfcBalance={setEfcBalance} showToast={showToast} />
+
       {/* Verification Policy Disclaimer */}
       <div className="glass-panel p-4 rounded-[20px] border-white/5 flex items-start gap-3 bg-accent-warning/[0.01]">
         <ShieldAlert size={16} className="text-accent-warning shrink-0 mt-0.5" />
@@ -151,6 +156,77 @@ export const Tasks = ({ setEfcBalance, showToast }: TasksProps) => {
         </div>
       </div>
 
+    </div>
+  );
+};
+
+interface RewardedAdsProps {
+  setEfcBalance: (val: number | ((prev: number) => number)) => void;
+  showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
+}
+
+const RewardedAds: React.FC<RewardedAdsProps> = ({ setEfcBalance, showToast }) => {
+  const [adWatching, setAdWatching] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(3);
+
+  const startAd = () => {
+    setAdWatching(true);
+    setTimeLeft(3);
+    showToast("Launching sponsored video stream...", "info");
+  };
+
+  useEffect(() => {
+    if (!adWatching) return;
+    if (timeLeft <= 0) {
+      setAdWatching(false);
+      setEfcBalance(prev => prev + 500);
+      showToast("Ad completed! Earned +500 EForce Points!", "success");
+      
+      confetti({
+        particleCount: 40,
+        spread: 50,
+        colors: ['#00E5FF', '#FFD700']
+      });
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setTimeLeft(prev => prev - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [adWatching, timeLeft, setEfcBalance]);
+
+  return (
+    <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-3.5 relative overflow-hidden">
+      <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Rewarded Nodes</span>
+      
+      <div className="flex justify-between items-center">
+        <div className="flex flex-col gap-0.5">
+          <h4 className="text-xs font-bold text-white">Watch Sponsored Ad Broadcast</h4>
+          <span className="text-[10px] text-accent-purple font-semibold">+500 EForce Points</span>
+        </div>
+
+        <button
+          onClick={startAd}
+          disabled={adWatching}
+          className="h-9 px-4 rounded-xl bg-gradient-to-r from-accent-purple to-accent-blue text-white text-xs font-bold shadow hover:shadow-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Watch ad
+        </button>
+      </div>
+
+      {/* Ad Watch Simulator Modal Overlay */}
+      <AnimatePresence>
+        {adWatching && (
+          <div className="absolute inset-0 z-50 bg-[#050816] flex flex-col items-center justify-center text-center p-4">
+            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-black block mb-2">Streaming Broadcast</span>
+            <div className="w-16 h-16 rounded-full border-4 border-t-accent-cyan border-white/10 animate-spin flex items-center justify-center mb-4">
+              <span className="text-xs font-black text-white">{timeLeft}s</span>
+            </div>
+            <p className="text-xs text-slate-300 font-bold">Verify node network connection to award credits...</p>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

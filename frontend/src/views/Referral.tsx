@@ -8,15 +8,18 @@ interface ReferralProps {
   setEfcBalance: React.Dispatch<React.SetStateAction<number>>;
   hasUnlockedWithdrawal: boolean;
   setHasUnlockedWithdrawal: (unlocked: boolean) => void;
+  referralsCount: number;
+  setReferralsCount: React.Dispatch<React.SetStateAction<number>>;
 }
 
 export const Referral: React.FC<ReferralProps> = ({ 
   showToast, 
   setEfcBalance, 
   hasUnlockedWithdrawal, 
-  setHasUnlockedWithdrawal 
+  setHasUnlockedWithdrawal,
+  referralsCount,
+  setReferralsCount
 }) => {
-  const [referralsCount, setReferralsCount] = useState(8);
   const [copied, setCopied] = useState(false);
   const referralLink = "https://t.me/EliteForceBot?start=efc_r_sourav";
 

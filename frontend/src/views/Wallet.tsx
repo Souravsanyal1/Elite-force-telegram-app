@@ -1,22 +1,43 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Wallet as WalletIcon, ArrowUpRight, ArrowDownLeft, Clock, ShieldCheck, Lock, CheckCircle, ShieldAlert, Sparkles } from 'lucide-react';
+import { Wallet as WalletIcon, ArrowUpRight, ArrowDownLeft, Clock, ShieldCheck, Lock, CheckCircle, ShieldAlert, Sparkles, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
+
+interface TokenSaleType {
+  active: boolean;
+  price: number;
+  totalSold: number;
+  totalSupply: number;
+  minPurchase: number;
+  maxPurchase: number;
+}
 
 interface WalletProps {
   efcBalance: number;
   setEfcBalance: React.Dispatch<React.SetStateAction<number>>;
+  eforceTokens: number;
+  setEforceTokens: React.Dispatch<React.SetStateAction<number>>;
   usdtBalance: number;
   setUsdtBalance: React.Dispatch<React.SetStateAction<number>>;
+  swapOpen: boolean;
+  swapRate: number;
+  tokenSale: TokenSaleType;
+  setTokenSale: React.Dispatch<React.SetStateAction<TokenSaleType>>;
+  connectedWallet: string | null;
+  setConnectedWallet: React.Dispatch<React.SetStateAction<string | null>>;
+  connectedAddress: string | null;
+  setConnectedAddress: React.Dispatch<React.SetStateAction<string | null>>;
+  withdrawRequests: Array<{ id: string; user: string; amount: number; status: 'Pending' | 'Approved' | 'Rejected' | 'Banned'; date: string }>;
+  setWithdrawRequests: React.Dispatch<React.SetStateAction<any[]>>;
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   hasUnlockedWithdrawal: boolean;
 }
 
 interface Transaction {
   id: string;
-  type: 'deposit' | 'withdraw' | 'reward';
+  type: 'deposit' | 'withdraw' | 'reward' | 'swap' | 'buy';
   amount: string;
-  asset: 'EForce' | 'USDT';
+  asset: 'EForce' | 'USDT' | 'EForce Token';
   status: 'completed' | 'pending';
   date: string;
 }
@@ -24,18 +45,40 @@ interface Transaction {
 export const Wallet: React.FC<WalletProps> = ({
   efcBalance,
   setEfcBalance,
+  eforceTokens,
+  setEforceTokens,
   usdtBalance,
   setUsdtBalance,
+  swapOpen,
+  swapRate,
+  tokenSale,
+  setTokenSale,
+  connectedWallet,
+  setConnectedWallet,
+  connectedAddress,
+  setConnectedAddress,
+  withdrawRequests,
+  setWithdrawRequests,
   showToast,
   hasUnlockedWithdrawal,
 }) => {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [showSwapModal, setShowSwapModal] = useState(false);
+  
   const [pin, setPin] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('10.0');
 
+  // Local swap form state
+  const [swapInputPoints, setSwapInputPoints] = useState('1000');
+  
+  // Local buy token state
+  const [buyUsdtAmount, setBuyUsdtAmount] = useState('10.0');
+
+  // Transactions list
   const [transactions, setTransactions] = useState<Transaction[]>([
     { id: '1', type: 'reward', amount: '250', asset: 'EForce', status: 'completed', date: 'Today, 14:23' },
     { id: '2', type: 'reward', amount: '1,000', asset: 'EForce', status: 'completed', date: 'Yesterday, 18:05' },
@@ -59,39 +102,46 @@ export const Wallet: React.FC<WalletProps> = ({
     const nextPin = pin + num;
     setPin(nextPin);
 
-    // Auto-submit when length reaches 4
     if (nextPin.length === 4) {
       setIsVerifying(true);
       setTimeout(() => {
         setIsVerifying(false);
         setIsSuccess(true);
-        setUsdtBalance(prev => prev - parseFloat(withdrawAmount));
-        setEfcBalance(prev => prev - (parseFloat(withdrawAmount) * 600)); // convert EForce
+        const amountNum = parseFloat(withdrawAmount);
+        setUsdtBalance(prev => prev - amountNum);
         
-        // Add transaction
+        // Add to global withdraw requests so it shows up in Admin dashboard instantly
+        const newReq = {
+          id: Date.now().toString().slice(-4),
+          user: 'Sourav Sanyal (You)',
+          amount: amountNum,
+          status: 'Pending' as const,
+          date: 'Just Now',
+        };
+        setWithdrawRequests(prev => [newReq, ...prev]);
+
+        // Add transaction local ledger
         setTransactions(prev => [
           {
             id: Date.now().toString(),
             type: 'withdraw',
             amount: withdrawAmount,
             asset: 'USDT',
-            status: 'completed',
+            status: 'pending',
             date: 'Just Now',
           },
           ...prev,
         ]);
 
-        showToast(`Withdrawal of $${withdrawAmount} USDT successful!`, 'success');
+        showToast(`Withdrawal request of $${withdrawAmount} USDT submitted!`, 'success');
 
-        // Confetti explosion
         confetti({
-          particleCount: 100,
-          spread: 80,
+          particleCount: 80,
+          spread: 70,
           origin: { y: 0.6 },
           colors: ['#00FF88', '#00E5FF', '#ffffff'],
         });
 
-        // Close modal after success display
         setTimeout(() => {
           setShowWithdrawModal(false);
         }, 2200);
@@ -104,16 +154,152 @@ export const Wallet: React.FC<WalletProps> = ({
     setPin(prev => prev.slice(0, -1));
   };
 
+  // Simulated Wallet Connect Flow
+  const handleSelectWallet = (walletName: string) => {
+    setShowConnectModal(false);
+    showToast(`Connecting to ${walletName}...`, 'info');
+    
+    setTimeout(() => {
+      const mockAddr = '0x' + Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+      setConnectedWallet(walletName);
+      setConnectedAddress(mockAddr);
+      showToast(`${walletName} connected successfully!`, 'success');
+      
+      confetti({
+        particleCount: 50,
+        spread: 60,
+        origin: { y: 0.8 },
+        colors: ['#F3BA2F', '#00E5FF']
+      });
+    }, 1500);
+  };
+
+  const handleDisconnectWallet = () => {
+    setConnectedWallet(null);
+    setConnectedAddress(null);
+    showToast('Wallet disconnected.', 'info');
+  };
+
+  // EForce Swap Handler
+  const handleSwap = () => {
+    const pointsNum = parseInt(swapInputPoints);
+    if (isNaN(pointsNum) || pointsNum <= 0) {
+      showToast('Please enter a valid amount of points.', 'error');
+      return;
+    }
+    if (efcBalance < pointsNum) {
+      showToast('Insufficient EForce points balance.', 'error');
+      return;
+    }
+
+    const tokensToReceive = pointsNum / swapRate;
+    setEfcBalance(prev => prev - pointsNum);
+    setEforceTokens(prev => prev + tokensToReceive);
+    showToast(`Swapped ${pointsNum} Points for ${tokensToReceive} EForce Tokens!`, 'success');
+    setShowSwapModal(false);
+
+    setTransactions(prev => [
+      {
+        id: Date.now().toString(),
+        type: 'swap',
+        amount: `${tokensToReceive}`,
+        asset: 'EForce Token',
+        status: 'completed',
+        date: 'Just Now',
+      },
+      ...prev,
+    ]);
+
+    confetti({
+      particleCount: 60,
+      spread: 60,
+      colors: ['#00E5FF', '#B388FF']
+    });
+  };
+
+  // Token Buy Handler
+  const handleBuyTokens = () => {
+    if (!connectedWallet) {
+      showToast('Please connect your BEP-20 wallet first!', 'warning');
+      return;
+    }
+    const usdtNum = parseFloat(buyUsdtAmount);
+    if (isNaN(usdtNum) || usdtNum <= 0) {
+      showToast('Please enter a valid USDT amount.', 'error');
+      return;
+    }
+    if (usdtBalance < usdtNum) {
+      showToast('Insufficient USDT balance.', 'error');
+      return;
+    }
+
+    const tokensBought = usdtNum / tokenSale.price;
+    if (tokenSale.totalSold + tokensBought > tokenSale.totalSupply) {
+      showToast('Purchase exceeds remaining supply.', 'error');
+      return;
+    }
+
+    setUsdtBalance(prev => prev - usdtNum);
+    setEforceTokens(prev => prev + tokensBought);
+    setTokenSale(prev => ({
+      ...prev,
+      totalSold: prev.totalSold + tokensBought
+    }));
+
+    showToast(`Successfully bought ${tokensBought.toLocaleString()} EForce Tokens!`, 'success');
+
+    setTransactions(prev => [
+      {
+        id: Date.now().toString(),
+        type: 'buy',
+        amount: `${tokensBought.toLocaleString()}`,
+        asset: 'EForce Token',
+        status: 'completed',
+        date: 'Just Now',
+      },
+      ...prev,
+    ]);
+
+    confetti({
+      particleCount: 80,
+      spread: 80,
+      colors: ['#F3BA2F', '#00FF88']
+    });
+  };
+
   return (
     <div className="flex flex-col gap-5 pb-28">
       {/* View Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">Cryptoport</h1>
-        <p className="text-xs text-slate-400 mt-1">Manage deposits, pending assets, and luxury withdrawals.</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Cryptoport</h1>
+          <p className="text-xs text-slate-400 mt-1">Manage deposits, pending assets, and luxury withdrawals.</p>
+        </div>
+        
+        {/* Wallet Connection Status pill */}
+        {connectedWallet ? (
+          <button 
+            onClick={handleDisconnectWallet}
+            className="flex items-center gap-1.5 bg-accent-success/10 border border-accent-success/20 px-3 py-1.5 rounded-full hover:bg-accent-danger/10 hover:border-accent-danger/20 transition-all group cursor-pointer"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-accent-success group-hover:bg-accent-danger"></span>
+            <span className="text-[10px] font-bold text-accent-success group-hover:text-accent-danger uppercase font-mono">
+              {connectedAddress?.slice(0, 6)}...{connectedAddress?.slice(-4)}
+            </span>
+          </button>
+        ) : (
+          <button 
+            onClick={() => setShowConnectModal(true)}
+            className="flex items-center gap-1.5 bg-accent-cyan/15 border border-accent-cyan/20 px-3.5 py-1.5 rounded-full text-accent-cyan text-[10px] font-bold hover:bg-accent-cyan/25 transition-all cursor-pointer"
+          >
+            <WalletIcon size={12} />
+            <span>Connect Wallet</span>
+          </button>
+        )}
       </div>
 
       {/* Hero Wallet Card */}
-      <div className="glass-panel p-6 rounded-[24px] border-white/6 relative overflow-hidden flex flex-col justify-between shadow-[0_20px_50px_rgba(0,229,255,0.04)]">
+      <div className="glass-panel p-6 rounded-[24px] border-white/6 relative overflow-hidden flex flex-col justify-between shadow-[0_20px_50px_rgba(0,0,0,0.4)]">
         {/* Lights */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-accent-cyan/5 rounded-full filter blur-xl"></div>
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-accent-purple/5 rounded-full filter blur-xl"></div>
@@ -143,9 +329,9 @@ export const Wallet: React.FC<WalletProps> = ({
             <span className="text-sm font-extrabold text-white font-display">{efcBalance.toLocaleString()}</span>
           </div>
           <div>
-            <span className="text-[9px] text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">Pending Claim</span>
+            <span className="text-[9px] text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">EForce Tokens</span>
             <span className="text-sm font-semibold text-accent-purple flex items-center gap-1 font-display">
-              <Clock size={11} /> 1,250 EForce
+              <Clock size={11} /> {eforceTokens.toLocaleString()}
             </span>
           </div>
         </div>
@@ -154,11 +340,11 @@ export const Wallet: React.FC<WalletProps> = ({
       {/* Action Buttons */}
       <div className="grid grid-cols-2 gap-3">
         <button
-          onClick={() => showToast('USDT Deposit address: 0x8a9C...92Fb (TON network)', 'info')}
+          onClick={() => showToast('USDT Deposit address: 0x8a9C...92Fb (Binance Smart Chain BEP-20)', 'info')}
           className="h-12 glass-btn rounded-[18px] text-xs font-bold text-white flex items-center justify-center gap-2 shadow-[0_4px_15px_rgba(0,0,0,0.15)]"
         >
           <ArrowDownLeft size={14} className="text-accent-cyan" />
-          <span>Deposit Crypto</span>
+          <span>Deposit USDT</span>
         </button>
 
         <button
@@ -183,10 +369,108 @@ export const Wallet: React.FC<WalletProps> = ({
         </button>
       </div>
 
+      {/* Swap Center - Dynamic and Admin Controlled */}
+      <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-3.5">
+        <div className="flex justify-between items-center">
+          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Swap Portal</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] text-slate-400">Swap Status:</span>
+            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${
+              swapOpen 
+                ? 'bg-accent-success/15 border-accent-success/20 text-accent-success' 
+                : 'bg-accent-danger/15 border-accent-danger/20 text-accent-danger'
+            }`}>
+              {swapOpen ? 'Open' : 'Closed'}
+            </span>
+          </div>
+        </div>
+
+        {swapOpen ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-[11px] text-slate-400">
+              Convert your mined EForce Points to EForce utility tokens instantly. Current Conversion rate is <span className="text-accent-cyan font-bold">{swapRate} Points = 1 EForce Token</span>.
+            </p>
+            <button
+              onClick={() => setShowSwapModal(true)}
+              className="h-10 rounded-xl bg-gradient-to-r from-accent-purple to-accent-blue text-white text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer"
+            >
+              Configure Swap Exchange
+            </button>
+          </div>
+        ) : (
+          <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 text-center flex flex-col gap-1.5">
+            <Lock className="text-slate-500 mx-auto" size={16} />
+            <span className="text-xs font-bold text-slate-400">Conversion Swapping Closed</span>
+            <p className="text-[10px] text-slate-500">The swap gateway is currently locked by ecosystem administrators.</p>
+          </div>
+        )}
+      </div>
+
+      {/* 6. Token Sale Manager Interface */}
+      {tokenSale.active && (
+        <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-3.5">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">EForce Token Sale</span>
+            <span className="text-[9px] text-accent-gold font-bold uppercase border border-accent-gold/20 bg-accent-gold/10 px-2 py-0.5 rounded">
+              Live ICO
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex justify-between text-xs font-bold text-white">
+              <span>Price: ${tokenSale.price} USDT</span>
+              <span className="text-accent-purple">
+                {((tokenSale.totalSold / tokenSale.totalSupply) * 100).toFixed(1)}% Sold
+              </span>
+            </div>
+            
+            {/* Progress bar */}
+            <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden border border-white/5 p-[1px]">
+              <div 
+                className="h-full bg-gradient-to-r from-accent-purple to-accent-blue rounded-full" 
+                style={{ width: `${(tokenSale.totalSold / tokenSale.totalSupply) * 100}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[9px] text-slate-500 font-bold">
+              <span>{tokenSale.totalSold.toLocaleString()} EForce</span>
+              <span>Max Cap: {tokenSale.totalSupply.toLocaleString()}</span>
+            </div>
+
+            <div className="w-full h-[1px] bg-white/5 my-1.5" />
+
+            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Buy with USDT</span>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                value={buyUsdtAmount}
+                onChange={(e) => setBuyUsdtAmount(e.target.value)}
+                placeholder="USDT amount"
+                className="flex-1 bg-[#12182D] border border-white/8 text-slate-300 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:border-accent-cyan outline-none"
+              />
+              <button
+                onClick={handleBuyTokens}
+                className="px-5 rounded-lg bg-accent-cyan text-bg-primary text-xs font-extrabold shadow hover:bg-accent-cyan/90 transition-all cursor-pointer"
+              >
+                Purchase
+              </button>
+            </div>
+            <span className="text-[9px] text-slate-500">
+              Receive: {(parseFloat(buyUsdtAmount) / tokenSale.price || 0).toLocaleString()} EForce Tokens (Min: ${tokenSale.minPurchase} USDT)
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Transaction History */}
       <div className="flex flex-col gap-3">
-        <span className="text-xs font-bold text-accent-cyan tracking-wider uppercase">Ledger History</span>
-        
+        <div className="flex justify-between items-center">
+          <span className="text-xs font-bold text-accent-cyan tracking-wider uppercase">Ledger History</span>
+          {withdrawRequests.filter(r => r.status === 'Pending').length > 0 && (
+            <span className="text-[10px] text-accent-warning font-bold uppercase animate-pulse">
+              ({withdrawRequests.filter(r => r.status === 'Pending').length} Pending Node Approval)
+            </span>
+          )}
+        </div>
         <div className="flex flex-col gap-2">
           {transactions.map((tx) => (
             <div key={tx.id} className="glass-panel p-4 rounded-[20px] border-white/5 flex items-center justify-between">
@@ -196,11 +480,15 @@ export const Wallet: React.FC<WalletProps> = ({
                     ? 'bg-accent-success/10 border-accent-success/20 text-accent-success' 
                     : tx.type === 'withdraw'
                       ? 'bg-accent-danger/10 border-accent-danger/20 text-accent-danger'
-                      : 'bg-accent-purple/10 border-accent-purple/20 text-accent-purple'
+                      : tx.type === 'swap'
+                        ? 'bg-accent-cyan/10 border-accent-cyan/20 text-accent-cyan'
+                        : 'bg-accent-purple/10 border-accent-purple/20 text-accent-purple'
                 }`}>
                   {tx.type === 'deposit' && <ArrowDownLeft size={15} />}
                   {tx.type === 'withdraw' && <ArrowUpRight size={15} />}
                   {tx.type === 'reward' && <Sparkles size={15} />}
+                  {tx.type === 'swap' && <Clock size={15} />}
+                  {tx.type === 'buy' && <WalletIcon size={15} />}
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-white capitalize">{tx.type} Asset</h4>
@@ -210,9 +498,9 @@ export const Wallet: React.FC<WalletProps> = ({
 
               <div className="text-right">
                 <span className={`text-xs font-extrabold font-display ${
-                  tx.type === 'deposit' || tx.type === 'reward' ? 'text-accent-success' : 'text-accent-danger'
+                  tx.type === 'deposit' || tx.type === 'reward' || tx.type === 'swap' || tx.type === 'buy' ? 'text-accent-success' : 'text-accent-danger'
                 }`}>
-                  {tx.type === 'deposit' || tx.type === 'reward' ? '+' : '-'}{tx.amount} {tx.asset}
+                  {tx.type === 'deposit' || tx.type === 'reward' || tx.type === 'swap' || tx.type === 'buy' ? '+' : '-'}{tx.amount} {tx.asset}
                 </span>
                 <span className="text-[9px] text-slate-500 block">Verified</span>
               </div>
@@ -220,6 +508,89 @@ export const Wallet: React.FC<WalletProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Connect Wallet Modal */}
+      <AnimatePresence>
+        {showConnectModal && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-panel p-6 rounded-[28px] border-white/8 w-full max-w-[340px] shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                  <WalletIcon size={16} className="text-accent-cyan" />
+                  Connect BEP-20 Wallet
+                </h3>
+                <button onClick={() => setShowConnectModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><X size={16} /></button>
+              </div>
+
+              <div className="flex flex-col gap-2.5">
+                {['MetaMask', 'Trust Wallet', 'Binance Wallet', 'OKX Wallet', 'TokenPocket'].map((wallet) => (
+                  <button
+                    key={wallet}
+                    onClick={() => handleSelectWallet(wallet)}
+                    className="p-3 rounded-xl bg-white/5 border border-white/8 hover:bg-white/10 text-left text-xs font-bold text-white flex items-center justify-between cursor-pointer"
+                  >
+                    <span>{wallet}</span>
+                    <span className="text-[8px] uppercase tracking-wider font-extrabold text-slate-500">BEP20 Support</span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* EForce Swap Modal */}
+      <AnimatePresence>
+        {showSwapModal && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-panel p-6 rounded-[28px] border-white/8 w-full max-w-[340px] shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-sm font-bold text-white">Perform EForce Token Swap</h3>
+                <button onClick={() => setShowSwapModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><X size={16} /></button>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase">Points to Swap</span>
+                  <input
+                    type="number"
+                    value={swapInputPoints}
+                    onChange={(e) => setSwapInputPoints(e.target.value)}
+                    className="w-full bg-[#12182D] border border-white/8 text-slate-300 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:border-accent-cyan outline-none"
+                  />
+                  <span className="text-[9px] text-slate-500">Available: {efcBalance.toLocaleString()} Points</span>
+                </div>
+
+                <div className="w-full h-[1px] bg-white/5" />
+
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase">You will receive</span>
+                  <span className="text-sm font-black text-accent-cyan">
+                    {(parseInt(swapInputPoints) / swapRate || 0).toLocaleString()} EForce Tokens
+                  </span>
+                </div>
+
+                <button
+                  onClick={handleSwap}
+                  className="h-10 rounded-xl bg-gradient-to-r from-accent-purple to-accent-blue text-white text-xs font-bold shadow-md cursor-pointer"
+                >
+                  Confirm Convert Swap
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Withdrawal Blocked Warning Modal */}
       <AnimatePresence>
@@ -229,10 +600,9 @@ export const Wallet: React.FC<WalletProps> = ({
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
               className="glass-panel p-6 rounded-[28px] border-white/8 w-full max-w-[340px] text-center shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
             >
-              <div className="w-12 h-12 rounded-full bg-accent-danger/15 border border-accent-danger/25 text-accent-danger flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(255,77,109,0.15)] animate-bounce">
+              <div className="w-12 h-12 rounded-full bg-accent-danger/15 border border-accent-danger/25 text-accent-danger flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(255,77,109,0.15)]">
                 <ShieldAlert size={22} />
               </div>
 
@@ -268,7 +638,6 @@ export const Wallet: React.FC<WalletProps> = ({
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
-              transition={{ type: 'spring', stiffness: 350, damping: 30 }}
               className="w-full glass-panel border-t border-white/10 rounded-t-[28px] p-6 pb-8 shadow-[0_-15px_50px_rgba(0,0,0,0.5)] max-h-[85vh] overflow-y-auto custom-scrollbar"
             >
               {/* Header */}
@@ -307,9 +676,7 @@ export const Wallet: React.FC<WalletProps> = ({
 
               {/* Safe & PIN Verification UI */}
               <div className="flex flex-col items-center gap-6 my-2">
-                {/* 3D Safe Vault Box Animation */}
                 <div className="relative w-28 h-28 flex items-center justify-center">
-                  {/* Outer circle glow */}
                   <div className={`absolute inset-0 rounded-full filter blur-xl opacity-30 transition-colors duration-500 ${
                     isSuccess ? 'bg-accent-success' : isVerifying ? 'bg-accent-cyan animate-pulse' : 'bg-accent-purple'
                   }`}></div>
@@ -326,14 +693,10 @@ export const Wallet: React.FC<WalletProps> = ({
                         <stop offset="100%" stopColor="#4D8CFF" />
                       </linearGradient>
                     </defs>
-                    {/* Safe body */}
                     <rect x="15" y="15" width="70" height="70" rx="14" fill="url(#safeMetal)" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" />
-                    {/* Inner door */}
                     <rect x="23" y="23" width="54" height="54" rx="8" fill="#121522" stroke="rgba(255,255,255,0.05)" />
-                    {/* Safe Lock Dial */}
                     <circle cx="50" cy="50" r="18" fill="url(#safeMetal)" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
                     
-                    {/* Spinning dial indicator */}
                     <motion.g
                       animate={isVerifying ? { rotate: 360 } : isSuccess ? { rotate: 90 } : { rotate: 0 }}
                       transition={isVerifying ? { repeat: Infinity, duration: 1.5, ease: 'linear' } : { duration: 0.5 }}
@@ -343,11 +706,9 @@ export const Wallet: React.FC<WalletProps> = ({
                       <line x1="50" y1="36" x2="50" y2="40" stroke="#00E5FF" strokeWidth="2.5" strokeLinecap="round" />
                     </motion.g>
 
-                    {/* Small vault lights */}
-                    <circle cx="30" cy="30" r="2" fill={isSuccess ? '#00FF88' : isVerifying ? '#00E5FF' : '#FF4D6D'} className="shadow-lg" />
+                    <circle cx="30" cy="30" r="2" fill={isSuccess ? '#00FF88' : isVerifying ? '#00E5FF' : '#FF4D6D'} />
                   </svg>
                   
-                  {/* Verification Overlays */}
                   <AnimatePresence>
                     {isSuccess && (
                       <motion.div
@@ -361,7 +722,6 @@ export const Wallet: React.FC<WalletProps> = ({
                   </AnimatePresence>
                 </div>
 
-                {/* PIN Code Dots indicator */}
                 <div className="flex flex-col items-center gap-2">
                   <span className="text-xs text-slate-400 font-semibold tracking-wider">
                     {isSuccess ? 'Withdrawal Confirmed' : isVerifying ? 'Verifying Node Signature...' : 'Enter 4-Digit Secure PIN'}
@@ -385,7 +745,6 @@ export const Wallet: React.FC<WalletProps> = ({
                   </div>
                 </div>
 
-                {/* PIN Numeric Pad */}
                 <div className="grid grid-cols-3 gap-2 w-full max-w-[280px]">
                   {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(num => (
                     <button
@@ -413,7 +772,7 @@ export const Wallet: React.FC<WalletProps> = ({
                   >
                     0
                   </button>
-
+                  
                   <button
                     onClick={handleBackspace}
                     disabled={isVerifying || isSuccess}
