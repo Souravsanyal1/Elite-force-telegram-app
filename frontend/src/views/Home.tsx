@@ -4,8 +4,8 @@ import { Sparkles, Trophy, Flame, ChevronRight, Zap, Play, Square, Star } from '
 import confetti from 'canvas-confetti';
 import { getDisplayName, type TelegramUser } from '../lib/telegramUser';
 import { recordTap } from '../lib/antiCheat';
-import { getLeaderboardUsers, recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, subscribeToUser, markUserStarted, type FirestoreUser } from '../lib/userService';
-import { subscribeToAdminSettings, type AdminSettings, DEFAULT_ADMIN_SETTINGS } from '../lib/adminSettingsService';
+import { getLeaderboardUsers, recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, subscribeToUser, markUserStarted, upsertUser, type FirestoreUser } from '../lib/userService';
+import { type AdminSettings } from '../lib/adminSettingsService';
 
 interface HomeProps {
   efcBalance: number;
@@ -17,6 +17,7 @@ interface HomeProps {
   referralsCount: number;
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   telegramUser: TelegramUser | null;
+  adminSettings: AdminSettings;
 }
 
 interface FloatingText {
@@ -36,16 +37,10 @@ export const Home: React.FC<HomeProps> = ({
   referralsCount,
   showToast,
   telegramUser,
+  adminSettings: settings, // alias adminSettings to settings
 }) => {
   const [isSpinning, setIsSpinning] = useState(false);
   const [clicks, setClicks] = useState<FloatingText[]>([]);
-
-  // Admin settings (real-time)
-  const [settings, setSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS);
-  useEffect(() => {
-    const unsub = subscribeToAdminSettings(setSettings);
-    return unsub;
-  }, []);
 
   // Combo system
   const [combo, setCombo] = useState(0);
@@ -67,6 +62,7 @@ export const Home: React.FC<HomeProps> = ({
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [dbUsers, setDbUsers] = useState<FirestoreUser[]>([]);
   const [dbUser, setDbUser] = useState<FirestoreUser | null>(null);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
 
   // Subscribe to real-time user document changes in Firestore
   useEffect(() => {
@@ -75,10 +71,20 @@ export const Home: React.FC<HomeProps> = ({
     return unsubscribe;
   }, [telegramUser]);
 
-  // Load leaderboard
+  // Load leaderboard dynamically when modal opens
   useEffect(() => {
-    getLeaderboardUsers(15).then(setDbUsers);
-  }, []);
+    if (showLeaderboard) {
+      setLoadingLeaderboard(true);
+      getLeaderboardUsers(15)
+        .then((users) => {
+          setDbUsers(users);
+          setLoadingLeaderboard(false);
+        })
+        .catch(() => {
+          setLoadingLeaderboard(false);
+        });
+    }
+  }, [showLeaderboard]);
 
   // Check today's claim status from localStorage (quick check before Firestore)
   useEffect(() => {
@@ -167,7 +173,45 @@ export const Home: React.FC<HomeProps> = ({
     }
 
     setClaimingDaily(true);
-    const result = await recordDailyCheckin(telegramUser.id, settings.dailyClaimRewards);
+    let result = await recordDailyCheckin(telegramUser.id, settings.dailyClaimRewards);
+
+    // Auto-init retry if user not initialized
+    if (!result.success && result.reason?.includes('initialized')) {
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const isRealTelegramUser = !!(window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+
+      if (isRealTelegramUser || isLocalhost) {
+        const ua = navigator.userAgent;
+        let detectedOS = 'Unknown OS';
+        if (ua.includes('Windows')) detectedOS = 'Windows';
+        else if (ua.includes('Macintosh')) detectedOS = 'macOS';
+        else if (ua.includes('Android')) detectedOS = 'Android';
+        else if (ua.includes('iPhone') || ua.includes('iPad')) detectedOS = 'iOS';
+
+        let detectedBrowser = 'Unknown Browser';
+        if (ua.includes('Firefox')) detectedBrowser = 'Firefox';
+        else if (ua.includes('Chrome')) detectedBrowser = 'Chrome';
+        else if (ua.includes('Safari') && !ua.includes('Chrome')) detectedBrowser = 'Safari';
+        else if (ua.includes('Telegram')) detectedBrowser = 'Telegram WebView';
+
+        await upsertUser(
+          telegramUser,
+          {
+            platform: navigator.platform || 'Web',
+            browser: detectedBrowser,
+            os: detectedOS,
+            resolution: `${window.screen.width}x${window.screen.height}`,
+            language: navigator.language || 'en',
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+          },
+          efcBalance
+        ).catch(() => {});
+
+        // Retry checkin
+        result = await recordDailyCheckin(telegramUser.id, settings.dailyClaimRewards);
+      }
+    }
+
     setClaimingDaily(false);
 
     if (result.success) {
@@ -301,7 +345,7 @@ export const Home: React.FC<HomeProps> = ({
         <div className="glass-panel p-4 rounded-[20px] border-white/5 flex flex-col gap-1">
           <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">EForce Points</span>
           <span className="text-xl font-black text-[#FF8A00]">{efcBalance.toLocaleString()}</span>
-          <span className="text-[9px] text-slate-500">≈ {(efcBalance / (settings.swapRate || 1000)).toFixed(4)} EST</span>
+          <span className="text-[9px] text-slate-500">≈ {(efcBalance / (settings.swapRate || 1000)).toFixed(4)} EForce</span>
         </div>
         <div className="glass-panel p-4 rounded-[20px] border-white/5 flex flex-col gap-1">
           <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">USDT Balance</span>
@@ -422,7 +466,7 @@ export const Home: React.FC<HomeProps> = ({
 
         {/* Streak Days Row */}
         <div className="flex gap-1.5">
-          {(settings.dailyClaimRewards || DEFAULT_ADMIN_SETTINGS.dailyClaimRewards).map((reward, i) => {
+          {(settings.dailyClaimRewards || []).map((reward, i) => {
             const dayNum = i + 1;
             const isCurrent = ((dailyStreak - 1) % 7) === i;
             const isPast = dailyStreak >= dayNum;
@@ -548,8 +592,13 @@ export const Home: React.FC<HomeProps> = ({
                 </h3>
                 <button onClick={() => setShowLeaderboard(false)} className="text-slate-400 hover:text-white cursor-pointer text-xs">Close</button>
               </div>
-              <div className="flex flex-col gap-2 overflow-y-auto">
-                {dbUsers.length === 0 ? (
+              <div className="flex flex-col gap-2 overflow-y-auto min-h-[150px] justify-center">
+                {loadingLeaderboard ? (
+                  <div className="flex flex-col items-center justify-center py-10 gap-2">
+                    <span className="w-6 h-6 border-2 border-t-transparent border-[#FF8A00] rounded-full animate-spin" />
+                    <span className="text-[10px] text-slate-500 font-semibold">Loading Leaderboard...</span>
+                  </div>
+                ) : dbUsers.length === 0 ? (
                   <div className="text-center py-8 text-slate-500 text-xs">No miners yet. Be the first!</div>
                 ) : (
                   dbUsers.map((u, i) => (

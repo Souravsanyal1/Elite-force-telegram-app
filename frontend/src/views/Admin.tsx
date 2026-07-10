@@ -417,7 +417,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
                 </div>
                 {[
                   { label: 'EForce Points', value: editPoints, set: setEditPoints },
-                  { label: 'EST Tokens', value: editTokens, set: setEditTokens },
+                  { label: 'EForce Tokens', value: editTokens, set: setEditTokens },
                   { label: 'USDT Balance', value: editWallet, set: setEditWallet },
                   { label: 'Referrals', value: editReferrals, set: setEditReferrals },
                 ].map(field => (
@@ -696,8 +696,8 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
           <div className="glass-panel p-4 rounded-[20px] border-white/6 flex flex-col gap-3">
             <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">💰 Economy</span>
             {[
-              { label: 'Swap Rate (EForce per 1 EST)', key: 'swapRate' },
-              { label: 'EST Token Value (USD)', key: 'eforceTokenValue' },
+              { label: 'Swap Rate (EForce Points per 1 EForce Token)', key: 'swapRate' },
+              { label: 'EForce Token Value (USD)', key: 'eforceTokenValue' },
               { label: 'Tap Reward (EForce)', key: 'tapReward' },
               { label: 'Combo Multiplier (x)', key: 'comboReward' },
               { label: 'Max Energy', key: 'energyMax' },

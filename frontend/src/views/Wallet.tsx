@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Wallet as WalletIcon, ArrowUpRight, ArrowDownLeft, Clock, ShieldCheck, Lock, CheckCircle, ShieldAlert, X, Edit3, Save } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { subscribeToAdminSettings, type AdminSettings, DEFAULT_ADMIN_SETTINGS } from '../lib/adminSettingsService';
+import { type AdminSettings } from '../lib/adminSettingsService';
 import { submitWithdrawRequest, updateWalletAddress, subscribeToUser, type FirestoreUser } from '../lib/userService';
 import type { TelegramUser } from '../lib/telegramUser';
 
@@ -15,6 +15,7 @@ interface WalletProps {
   setUsdtBalance: React.Dispatch<React.SetStateAction<number>>;
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   telegramUser: TelegramUser | null;
+  adminSettings: AdminSettings;
 }
 
 export const Wallet: React.FC<WalletProps> = ({
@@ -26,10 +27,11 @@ export const Wallet: React.FC<WalletProps> = ({
   setUsdtBalance,
   showToast,
   telegramUser,
+  adminSettings,
 }) => {
   const [dbUser, setDbUser] = useState<FirestoreUser | null>(null);
-  const [settings, setSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS);
-  
+  const settings = adminSettings;
+
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
@@ -45,12 +47,6 @@ export const Wallet: React.FC<WalletProps> = ({
 
   // Local swap form state
   const [swapInputPoints, setSwapInputPoints] = useState('1000');
-
-  // Subscribe to real-time Admin settings
-  useEffect(() => {
-    const unsub = subscribeToAdminSettings(setSettings);
-    return unsub;
-  }, []);
 
   // Subscribe to real-time user database state
   useEffect(() => {

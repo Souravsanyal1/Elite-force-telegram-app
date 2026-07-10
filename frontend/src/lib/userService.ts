@@ -20,6 +20,8 @@ import {
 import { db, isFirebaseConfigured } from './firebase';
 import type { TelegramUser } from './telegramUser';
 
+import { recordReferral } from './referralService';
+
 export interface FirestoreUser {
   telegramId: number;
   username: string;
@@ -96,6 +98,20 @@ export const upsertUser = async (
   const snap = await getDoc(userRef);
 
   if (!snap.exists()) {
+    // Parse referral code from WebApp start param
+    let referredBy: number | null = null;
+    try {
+      const tg = (window as any).Telegram?.WebApp;
+      const startParam = tg?.initDataUnsafe?.start_param || '';
+      if (startParam.startsWith('ref_')) {
+        const id = parseInt(startParam.replace('ref_', ''), 10);
+        if (!isNaN(id) && id !== telegramUser.id) {
+          referredBy = id;
+        }
+      }
+    } catch { /* noop */ }
+
+    // Save user doc
     await setDoc(userRef, {
       telegramId: telegramUser.id,
       username: telegramUser.username || '',
@@ -116,7 +132,7 @@ export const upsertUser = async (
       walletAddress: '',
       referrals: 0,
       referralCount: 0,
-      referredBy: null,
+      referredBy,
       dailyClaimStreak: 0,
       lastClaimDate: null,
       autoMinerLastUsed: null,
@@ -130,6 +146,11 @@ export const upsertUser = async (
       device: deviceInfo,
       totalDailyPoints: 0,
     });
+
+    // Record referral if present
+    if (referredBy) {
+      await recordReferral(referredBy, telegramUser.id, deviceFingerprint).catch(() => {});
+    }
   } else {
     await updateDoc(userRef, {
       firstName: telegramUser.firstName || '',
@@ -457,6 +478,7 @@ export const updateWalletAddress = async (telegramId: number, address: string): 
 
 /**
  * Records a daily check-in and returns the reward.
+ * Uses setDoc with merge so it works even if the user doc doesn't exist yet.
  */
 export const recordDailyCheckin = async (
   telegramId: number,
@@ -466,37 +488,55 @@ export const recordDailyCheckin = async (
     return { success: true, reward: 100, newStreak: 1 };
   }
   const userRef = doc(db, USERS_COLLECTION, String(telegramId));
-  try {
-    const snap = await getDoc(userRef);
-    if (!snap.exists()) return { success: false, reward: 0, newStreak: 0, reason: 'User not found.' };
-    const user = snap.data() as FirestoreUser;
+  // Retry up to 3 times on transient failures
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const snap = await getDoc(userRef);
+      if (!snap.exists()) {
+        // Doc missing — silently return: user must open app first
+        return { success: false, reward: 0, newStreak: 0, reason: 'User not initialized. Open the app first.' };
+      }
+      const user = snap.data() as FirestoreUser;
 
-    const today = new Date().toISOString().slice(0, 10);
-    if (user.lastClaimDate === today) {
-      return { success: false, reward: 0, newStreak: user.dailyClaimStreak, reason: 'Already claimed today.' };
+      const today = new Date().toISOString().slice(0, 10);
+      if (user.lastClaimDate === today) {
+        return { success: false, reward: 0, newStreak: user.dailyClaimStreak, reason: 'Already claimed today.' };
+      }
+
+      // Check streak continuity
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      const newStreak = user.lastClaimDate === yesterday
+        ? (user.dailyClaimStreak || 0) + 1
+        : 1;
+
+      const rewardIndex = (newStreak - 1) % claimRewards.length;
+      const reward = claimRewards[rewardIndex] || 100;
+      const newPoints = (user.points || 0) + reward;
+
+      await setDoc(userRef, {
+        dailyClaimStreak: newStreak,
+        lastClaimDate: today,
+        points: newPoints,
+      }, { merge: true });
+
+      return { success: true, reward, newStreak };
+    } catch (err: unknown) {
+      const isNetworkError = err instanceof Error && (
+        err.message.includes('network') ||
+        err.message.includes('offline') ||
+        err.message.includes('unavailable')
+      );
+      if (isNetworkError && attempt < 2) {
+        // Wait then retry
+        await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+        continue;
+      }
+      return { success: false, reward: 0, newStreak: 0, reason: 'Network error. Please try again.' };
     }
-
-    // Check streak continuity
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-    const newStreak = user.lastClaimDate === yesterday
-      ? (user.dailyClaimStreak || 0) + 1
-      : 1;
-
-    const rewardIndex = (newStreak - 1) % claimRewards.length;
-    const reward = claimRewards[rewardIndex] || 100;
-    const newPoints = (user.points || 0) + reward;
-
-    await updateDoc(userRef, {
-      dailyClaimStreak: newStreak,
-      lastClaimDate: today,
-      points: newPoints,
-    });
-
-    return { success: true, reward, newStreak };
-  } catch {
-    return { success: false, reward: 0, newStreak: 0, reason: 'Network error.' };
   }
+  return { success: false, reward: 0, newStreak: 0, reason: 'Network error after retries.' };
 };
+
 
 /**
  * Records auto miner session start.

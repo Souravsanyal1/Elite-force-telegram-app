@@ -65,7 +65,7 @@ export const Settings = ({ showToast }: SettingsProps) => {
           </div>
           <div className="flex-1">
             <span className="text-xs font-bold text-white block">How to Earn</span>
-            <span className="text-[10px] text-slate-500">Tap coin → earn EForce points → swap to EST token</span>
+            <span className="text-[10px] text-slate-500">Tap coin → earn EForce points → swap to EForce token</span>
           </div>
         </div>
 

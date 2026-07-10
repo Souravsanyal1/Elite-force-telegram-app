@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Copy, Share2, Users, Gift, Check, Lock, Unlock } from 'lucide-react';
 import { getReferralLink, getUserReferrals, type ReferralRecord } from '../lib/referralService';
-import { subscribeToAdminSettings, DEFAULT_ADMIN_SETTINGS, type AdminSettings } from '../lib/adminSettingsService';
+import { type AdminSettings } from '../lib/adminSettingsService';
 import type { TelegramUser } from '../lib/telegramUser';
 
 interface ReferralProps {
@@ -13,6 +13,7 @@ interface ReferralProps {
   referralsCount: number;
   setReferralsCount: React.Dispatch<React.SetStateAction<number>>;
   telegramUser: TelegramUser | null;
+  adminSettings: AdminSettings;
 }
 
 export const Referral: React.FC<ReferralProps> = ({
@@ -21,18 +22,13 @@ export const Referral: React.FC<ReferralProps> = ({
   setHasUnlockedWithdrawal,
   referralsCount,
   telegramUser,
+  adminSettings,
 }) => {
   const [copied, setCopied] = useState(false);
   const [referralRecords, setReferralRecords] = useState<ReferralRecord[]>([]);
   const [_loadingReferrals, setLoadingReferrals] = useState(false);
   void _loadingReferrals;
-  const [settings, setSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS);
-
-  // Admin settings (real-time)
-  useEffect(() => {
-    const unsub = subscribeToAdminSettings(setSettings);
-    return unsub;
-  }, []);
+  const settings = adminSettings;
 
   // Get real referral link
   const referralLink = telegramUser
@@ -194,7 +190,7 @@ export const Referral: React.FC<ReferralProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[9px] font-bold text-[#FF8A00]">
-                    +{(settings.referralRewardToken * milestone).toFixed(0)} EST
+                    +{(settings.referralRewardToken * milestone).toFixed(0)} EForce
                   </span>
                   <span className="text-[9px] font-bold text-accent-success">
                     +${(settings.referralRewardUsdt * milestone).toFixed(2)} USDT
@@ -205,7 +201,7 @@ export const Referral: React.FC<ReferralProps> = ({
           })}
         </div>
         <p className="text-[9px] text-slate-500 text-center">
-          Per valid referral: +{settings.referralRewardToken} EST + ${settings.referralRewardUsdt} USDT
+          Per valid referral: +{settings.referralRewardToken} EForce + ${settings.referralRewardUsdt} USDT
         </p>
       </div>
 
@@ -243,7 +239,7 @@ export const Referral: React.FC<ReferralProps> = ({
         {[
           'Share your referral link with friends',
           'Friend joins via your link & activates account',
-          'You earn EST tokens + USDT per valid referral',
+          'You earn EForce tokens + USDT per valid referral',
           `Get ${withdrawMinReferrals} referrals to unlock USDT withdrawal`,
         ].map((step, i) => (
           <div key={i} className="flex items-start gap-2.5">

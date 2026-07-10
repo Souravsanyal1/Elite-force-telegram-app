@@ -12,6 +12,7 @@ import { Admin } from './views/Admin';
 import { AdminLogin } from './views/AdminLogin';
 import { getTelegramWebAppData, type TelegramUser } from './lib/telegramUser';
 import { upsertUser, setUserOffline, syncPointsToFirestore, getOnlineUserCount, subscribeToUser, type FirestoreUser } from './lib/userService';
+import { subscribeToAdminSettings, DEFAULT_ADMIN_SETTINGS, type AdminSettings } from './lib/adminSettingsService';
 import { isFirebaseConfigured } from './lib/firebase';
 
 interface Toast {
@@ -85,6 +86,9 @@ export default function App() {
 
   // Dynamic live stats for Admin Panel (real from Firestore)
   const [liveUserCount, setLiveUserCount] = useState(0);
+
+  // Global admin settings — single subscription for entire app
+  const [adminSettings, setAdminSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS);
 
 
 
@@ -160,6 +164,12 @@ export default function App() {
       window.removeEventListener('popstate', handleLocationChange);
       window.history.pushState = originalPushState;
     };
+  }, []);
+
+  // Global admin settings subscription (single listener for whole app)
+  useEffect(() => {
+    const unsub = subscribeToAdminSettings(setAdminSettings);
+    return unsub;
   }, []);
 
   // Sync Firestore online user count every 30 seconds
@@ -318,6 +328,7 @@ export default function App() {
             referralsCount={referralsCount}
             showToast={showToast}
             telegramUser={telegramUser}
+            adminSettings={adminSettings}
           />
         );
       case 'tasks':
@@ -339,6 +350,7 @@ export default function App() {
             referralsCount={referralsCount}
             setReferralsCount={setReferralsCount}
             telegramUser={telegramUser}
+            adminSettings={adminSettings}
           />
         );
       case 'wallet':
@@ -352,6 +364,7 @@ export default function App() {
             setUsdtBalance={setUsdtBalance} 
             showToast={showToast}
             telegramUser={telegramUser}
+            adminSettings={adminSettings}
           />
         );
       case 'profile':

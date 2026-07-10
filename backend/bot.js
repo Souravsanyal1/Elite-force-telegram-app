@@ -20,11 +20,14 @@ function escapeMarkdownV2(text) {
 
 bot.start((ctx) => {
   const username = escapeMarkdownV2(ctx.from.first_name || 'Force Agent');
+  const payload = ctx.startPayload || '';
+  // Append tgWebAppStartParam so Telegram WebApp SDK populates initDataUnsafe.start_param
+  const finalUrl = payload ? `${webAppUrl}?tgWebAppStartParam=${payload}` : webAppUrl;
   
   ctx.replyWithMarkdownV2(
     `🛸 *Welcome to Elite Force \\(EFC\\), ${username}\\!* 🛸\n\nElite Force is a next\\-generation premium Web3 ecosystem\\.\n\nTap the button below to launch the Mini App and access your luxury dashboard\\!`,
     Markup.inlineKeyboard([
-      [Markup.button.webApp('🚀 Launch Elite Force App', webAppUrl)]
+      [Markup.button.webApp('🚀 Launch Elite Force App', finalUrl)]
     ])
   );
 });
