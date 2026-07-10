@@ -139,28 +139,33 @@ export default function App() {
 
     // Parse Telegram user from WebApp SDK
     const webAppData = getTelegramWebAppData();
+    const isRealTelegramUser = !!(window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
     if (webAppData.user) {
       setTelegramUser(webAppData.user);
       telegramIdRef.current = webAppData.user.id;
 
-      // Upsert Firestore user doc
-      upsertUser(
-        webAppData.user,
-        {
-          platform: navigator.platform || 'Web',
-          browser: detectedBrowser,
-          os: detectedOS,
-          resolution: `${window.screen.width}x${window.screen.height}`,
-          language: navigator.language || 'en',
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-        },
-        efcBalance
-      ).catch(() => {});
+      // Upsert Firestore user doc only if real Telegram user or local development
+      if (isRealTelegramUser || isLocalhost) {
+        upsertUser(
+          webAppData.user,
+          {
+            platform: navigator.platform || 'Web',
+            browser: detectedBrowser,
+            os: detectedOS,
+            resolution: `${window.screen.width}x${window.screen.height}`,
+            language: navigator.language || 'en',
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+          },
+          efcBalance
+        ).catch(() => {});
+      }
     }
 
     // Set user offline on tab/window close
     const handleUnload = () => {
-      if (telegramIdRef.current) {
+      if (telegramIdRef.current && (isRealTelegramUser || isLocalhost)) {
         setUserOffline(telegramIdRef.current);
       }
     };
@@ -200,6 +205,10 @@ export default function App() {
   // Sync EForce points to Firestore when balance changes
   useEffect(() => {
     if (!telegramUser) return;
+    const isRealTelegramUser = !!(window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (!isRealTelegramUser && !isLocalhost) return;
+
     const timeout = setTimeout(() => {
       lastSyncedPointsRef.current = efcBalance;
       syncPointsToFirestore(telegramUser.id, efcBalance).catch(() => {});
@@ -210,6 +219,10 @@ export default function App() {
   // Subscribe to real-time user document changes in Firestore
   useEffect(() => {
     if (!telegramUser) return;
+    const isRealTelegramUser = !!(window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (!isRealTelegramUser && !isLocalhost) return;
+
     const unsubscribe = subscribeToUser(telegramUser.id, (user) => {
       if (user) {
         setDbUser(user);
