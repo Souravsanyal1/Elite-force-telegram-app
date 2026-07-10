@@ -310,9 +310,7 @@ export const getAllUsers = async (): Promise<FirestoreUser[]> => {
     const users: FirestoreUser[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data() as FirestoreUser;
-      if (data.hasStarted) {
-        users.push(data);
-      }
+      users.push(data);
     });
     // Sort in-memory by points descending
     users.sort((a, b) => (b.points || 0) - (a.points || 0));
@@ -324,13 +322,10 @@ export const getAllUsers = async (): Promise<FirestoreUser[]> => {
 };
 
 
-/**
- * Gets total count of registered users who have clicked START.
- */
 export const getTotalUserCount = async (): Promise<number> => {
   if (!isFirebaseConfigured()) return 0;
   try {
-    const q = query(collection(db, USERS_COLLECTION), where('hasStarted', '==', true));
+    const q = query(collection(db, USERS_COLLECTION));
     const snapshot = await getCountFromServer(q);
     return snapshot.data().count;
   } catch {
@@ -339,7 +334,7 @@ export const getTotalUserCount = async (): Promise<number> => {
 };
 
 /**
- * Gets count of today's new users who have clicked START.
+ * Gets count of today's new users.
  */
 export const getTodayNewUsersCount = async (): Promise<number> => {
   if (!isFirebaseConfigured()) return 0;
@@ -348,7 +343,6 @@ export const getTodayNewUsersCount = async (): Promise<number> => {
     today.setHours(0, 0, 0, 0);
     const q = query(
       collection(db, USERS_COLLECTION),
-      where('hasStarted', '==', true),
       where('createdAt', '>=', Timestamp.fromDate(today))
     );
     const snap = await getCountFromServer(q);
