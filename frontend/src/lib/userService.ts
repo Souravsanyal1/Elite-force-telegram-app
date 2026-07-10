@@ -33,6 +33,12 @@ export interface FirestoreUser {
   isOnline: boolean;
   createdAt: unknown;
 
+  /**
+   * hasStarted: true only after the user clicks the START mining button.
+   * Admin panel counts only users where hasStarted === true.
+   */
+  hasStarted: boolean;
+
   // Balances
   points: number;
   tokens: number;        // EST token balance
@@ -102,6 +108,8 @@ export const upsertUser = async (
       isOnline: true,
       createdAt: serverTimestamp(),
       lastSeen: serverTimestamp(),
+      // hasStarted is false until user explicitly clicks the START button
+      hasStarted: false,
       points: 0,
       tokens: 0,
       wallet: 0,
@@ -275,13 +283,17 @@ export const checkUserBan = (user: FirestoreUser): { banned: boolean; until?: Da
 };
 
 /**
- * Admin: Fetches all registered users from Firestore (sorted by points).
+ * Admin: Fetches all registered users who have clicked START (sorted by points).
  */
 export const getAllUsers = async (): Promise<FirestoreUser[]> => {
   if (!isFirebaseConfigured()) return [];
   try {
     const querySnapshot = await getDocs(
-      query(collection(db, USERS_COLLECTION), orderBy('points', 'desc'))
+      query(
+        collection(db, USERS_COLLECTION),
+        where('hasStarted', '==', true),
+        orderBy('points', 'desc')
+      )
     );
     const users: FirestoreUser[] = [];
     querySnapshot.forEach((docSnap) => users.push(docSnap.data() as FirestoreUser));
@@ -291,13 +303,15 @@ export const getAllUsers = async (): Promise<FirestoreUser[]> => {
   }
 };
 
+
 /**
- * Gets total count of registered users.
+ * Gets total count of registered users who have clicked START.
  */
 export const getTotalUserCount = async (): Promise<number> => {
   if (!isFirebaseConfigured()) return 0;
   try {
-    const snapshot = await getCountFromServer(collection(db, USERS_COLLECTION));
+    const q = query(collection(db, USERS_COLLECTION), where('hasStarted', '==', true));
+    const snapshot = await getCountFromServer(q);
     return snapshot.data().count;
   } catch {
     return 0;
@@ -305,7 +319,7 @@ export const getTotalUserCount = async (): Promise<number> => {
 };
 
 /**
- * Gets count of today's new users.
+ * Gets count of today's new users who have clicked START.
  */
 export const getTodayNewUsersCount = async (): Promise<number> => {
   if (!isFirebaseConfigured()) return 0;
@@ -314,6 +328,7 @@ export const getTodayNewUsersCount = async (): Promise<number> => {
     today.setHours(0, 0, 0, 0);
     const q = query(
       collection(db, USERS_COLLECTION),
+      where('hasStarted', '==', true),
       where('createdAt', '>=', Timestamp.fromDate(today))
     );
     const snap = await getCountFromServer(q);
@@ -321,6 +336,24 @@ export const getTodayNewUsersCount = async (): Promise<number> => {
   } catch {
     return 0;
   }
+};
+
+/**
+ * Marks a user as "started" — called when they click the START mining button.
+ * This is when they are counted in admin KPIs.
+ */
+export const markUserStarted = async (telegramId: number): Promise<void> => {
+  if (!isFirebaseConfigured()) return;
+  const userRef = doc(db, USERS_COLLECTION, String(telegramId));
+  try {
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) return;
+    const data = snap.data() as FirestoreUser;
+    // Only write if not already started (avoid unnecessary writes)
+    if (!data.hasStarted) {
+      await updateDoc(userRef, { hasStarted: true });
+    }
+  } catch { /* noop */ }
 };
 
 /**

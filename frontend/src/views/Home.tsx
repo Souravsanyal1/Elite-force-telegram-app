@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Trophy, Flame, ChevronRight, Zap, Play, Square, Star } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { getShortName, getDisplayName, type TelegramUser } from '../lib/telegramUser';
+import { getDisplayName, type TelegramUser } from '../lib/telegramUser';
 import { recordTap } from '../lib/antiCheat';
-import { getLeaderboardUsers, recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, subscribeToUser, type FirestoreUser } from '../lib/userService';
+import { getLeaderboardUsers, recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, subscribeToUser, markUserStarted, type FirestoreUser } from '../lib/userService';
 import { subscribeToAdminSettings, type AdminSettings, DEFAULT_ADMIN_SETTINGS } from '../lib/adminSettingsService';
 
 interface HomeProps {
@@ -211,6 +211,11 @@ export const Home: React.FC<HomeProps> = ({
     setAutoMinerSeconds(0);
     showToast('⛏️ Auto Miner started! Mining for ' + (settings.autoMinerDuration / 60).toFixed(0) + ' minutes...', 'success');
 
+    // Mark user as started in Firestore (first real interaction = counted in admin)
+    if (telegramUser) {
+      markUserStarted(telegramUser.id).catch(() => {});
+    }
+
     // Mining countdown
     if (autoMinerIntervalRef.current) clearInterval(autoMinerIntervalRef.current);
     autoMinerIntervalRef.current = setInterval(async () => {
@@ -261,7 +266,6 @@ export const Home: React.FC<HomeProps> = ({
 
   const energyPercent = Math.min((energy / maxEnergy) * 100, 100);
   const displayName = telegramUser ? getDisplayName(telegramUser) : 'EForce Miner';
-  const shortName = telegramUser ? getShortName(telegramUser) : 'E';
   const withdrawMinReferrals = settings.withdrawMinReferrals;
   const referralProgress = Math.min((referralsCount / withdrawMinReferrals) * 100, 100);
 
@@ -283,8 +287,12 @@ export const Home: React.FC<HomeProps> = ({
             EForce Mining Dashboard
           </p>
         </div>
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FF8A00] to-[#FF5500] flex items-center justify-center text-white font-black text-sm shadow-[0_0_16px_rgba(255,138,0,0.3)]">
-          {shortName[0]?.toUpperCase()}
+        <div className="w-10 h-10 rounded-full border border-[#FFD700]/30 bg-[#0E1225] flex items-center justify-center shadow-[0_0_16px_rgba(255,138,0,0.3)] overflow-hidden">
+          {telegramUser?.photoUrl ? (
+            <img src={telegramUser.photoUrl} alt="" className="w-full h-full object-cover rounded-full" />
+          ) : (
+            <img src="/coin.png" alt="EF Coin" className="w-full h-full object-cover rounded-full" />
+          )}
         </div>
       </div>
 
