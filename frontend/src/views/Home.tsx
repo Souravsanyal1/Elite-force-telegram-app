@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Trophy, Flame, ChevronRight, Zap, X, Bolt } from 'lucide-react';
+import { Sparkles, Trophy, Flame, ChevronRight, Zap, Play, Square } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getShortName, getDisplayName, type TelegramUser } from '../lib/telegramUser';
 import { recordTap } from '../lib/antiCheat';
-import { getLeaderboardUsers, type FirestoreUser } from '../lib/userService';
+import { getLeaderboardUsers, recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, type FirestoreUser } from '../lib/userService';
+import { subscribeToAdminSettings, type AdminSettings, DEFAULT_ADMIN_SETTINGS } from '../lib/adminSettingsService';
 
 interface HomeProps {
   efcBalance: number;
@@ -25,600 +26,512 @@ interface FloatingText {
   value: number;
 }
 
-export const Home: React.FC<HomeProps> = ({ 
-  efcBalance, 
-  setEfcBalance, 
-  usdtBalance, 
-  energy, 
-  setEnergy, 
+export const Home: React.FC<HomeProps> = ({
+  efcBalance,
+  setEfcBalance,
+  usdtBalance,
+  energy,
+  setEnergy,
   maxEnergy,
   referralsCount,
   showToast,
-  telegramUser
+  telegramUser,
 }) => {
   const [isSpinning, setIsSpinning] = useState(false);
   const [clicks, setClicks] = useState<FloatingText[]>([]);
-  const [dailyClaimed, setDailyClaimed] = useState(false);
-  const [dailyStreak, setDailyStreak] = useState(4); // 4 days streak
+
+  // Admin settings (real-time)
+  const [settings, setSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS);
+  useEffect(() => {
+    const unsub = subscribeToAdminSettings(setSettings);
+    return unsub;
+  }, []);
 
   // Combo system
   const [combo, setCombo] = useState(0);
   const [lastTapTime, setLastTapTime] = useState(0);
 
-  // Auto-tap booster state
-  const [autoTapActive, setAutoTapActive] = useState(false);
+  // Daily Check-in (Firestore backed)
+  const [dailyClaimed, setDailyClaimed] = useState(false);
+  const [dailyStreak, setDailyStreak] = useState(0);
+  const [claimingDaily, setClaimingDaily] = useState(false);
 
-  // Leaderboard Modal State
+  // Auto Miner state
+  const [autoMinerRunning, setAutoMinerRunning] = useState(false);
+  const [autoMinerSeconds, setAutoMinerSeconds] = useState(0); // elapsed
+  const [autoMinerCooldownLeft, setAutoMinerCooldownLeft] = useState(0); // seconds remaining in cooldown
+  const autoMinerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoMinerCooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Leaderboard
   const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [leaderboardTab, setLeaderboardTab] = useState<'tap' | 'referral'>('tap');
-  const [leaderboardPeriod, setLeaderboardPeriod] = useState<'today' | 'weekly' | 'monthly' | 'alltime'>('weekly');
-
-  // Auto Tap logic (+5 points per second when active)
-  useEffect(() => {
-    if (!autoTapActive) return;
-    const interval = setInterval(() => {
-      setEfcBalance(prev => prev + 5);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [autoTapActive, setEfcBalance]);
-
-  // Firestore Leaderboard State
   const [dbUsers, setDbUsers] = useState<FirestoreUser[]>([]);
 
+  // Load leaderboard
   useEffect(() => {
-    const fetchLeaderboard = async () => {
-      const topUsers = await getLeaderboardUsers(15);
-      setDbUsers(topUsers);
-    };
-    fetchLeaderboard();
-  }, [efcBalance]); // re-fetch when local points change to keep it real-time
+    getLeaderboardUsers(15).then(setDbUsers);
+  }, []);
 
+  // Check today's claim status from localStorage (quick check before Firestore)
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const lastClaim = localStorage.getItem('lastClaimDate');
+    const streak = Number(localStorage.getItem('dailyStreak') || '0');
+    if (lastClaim === today) setDailyClaimed(true);
+    setDailyStreak(streak);
+  }, []);
 
-  // Click handler with anti-cheat
+  // Auto miner cooldown check from localStorage
+  useEffect(() => {
+    const lastUsed = localStorage.getItem('autoMinerLastUsed');
+    if (lastUsed) {
+      const elapsed = (Date.now() - Number(lastUsed)) / 1000;
+      const cooldown = settings.autoMinerCooldown;
+      if (elapsed < cooldown) {
+        setAutoMinerCooldownLeft(Math.ceil(cooldown - elapsed));
+        // Start countdown
+        startCooldownCountdown(Math.ceil(cooldown - elapsed));
+      }
+    }
+  }, [settings.autoMinerCooldown]);
+
+  const startCooldownCountdown = (seconds: number) => {
+    if (autoMinerCooldownRef.current) clearInterval(autoMinerCooldownRef.current);
+    setAutoMinerCooldownLeft(seconds);
+    autoMinerCooldownRef.current = setInterval(() => {
+      setAutoMinerCooldownLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(autoMinerCooldownRef.current!);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // Tap handler with anti-cheat
   const handleCoinClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (energy <= 0) {
-      showToast('No energy remaining! Wait for regeneration or use a Boost.', 'warning');
+      showToast('No energy! Wait for regeneration.', 'warning');
       return;
     }
 
     const now = Date.now();
     let nextCombo = 1;
-    if (now - lastTapTime < 800) {
-      nextCombo = combo + 1;
-    }
+    if (now - lastTapTime < 800) nextCombo = combo + 1;
     setCombo(nextCombo);
     setLastTapTime(now);
 
-    // Multiplier threshold
-    let tapMultiplier = 1;
-    if (nextCombo > 25) tapMultiplier = 5;
-    else if (nextCombo > 10) tapMultiplier = 2;
+    let tapMultiplier = settings.tapReward || 1;
+    if (nextCombo > 25) tapMultiplier = (settings.tapReward || 1) * (settings.comboReward || 3);
+    else if (nextCombo > 10) tapMultiplier = (settings.tapReward || 1) * 2;
 
-    // Anti-cheat check
     const { allowed, riskLevel, reason } = recordTap(tapMultiplier);
     if (!allowed) {
-      showToast(reason ?? 'Slow down! Anti-cheat triggered.', 'warning');
+      showToast(reason ?? 'Anti-cheat triggered. Slow down!', 'warning');
       return;
     }
     if (riskLevel === 'high') {
-      showToast('⚠️ High tap rate detected. Your account is flagged for review.', 'error');
+      showToast('⚠️ High tap rate detected. Account flagged for review.', 'error');
     }
 
     setIsSpinning(true);
     setEfcBalance(prev => prev + tapMultiplier);
     setEnergy(prev => Math.max(prev - 1, 0));
 
-    // Get click coords relative to the coin card
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-
     const clickId = Date.now();
     setClicks(prev => [...prev, { id: clickId, x, y, value: tapMultiplier }]);
 
-    setTimeout(() => {
-      setIsSpinning(false);
-    }, 400);
-
-    // Remove click after animation
-    setTimeout(() => {
-      setClicks(prev => prev.filter(c => c.id !== clickId));
-    }, 1000);
+    setTimeout(() => setIsSpinning(false), 400);
+    setTimeout(() => setClicks(prev => prev.filter(c => c.id !== clickId)), 1000);
   };
 
-  const claimDailyReward = () => {
-    if (dailyClaimed) {
-      showToast('Daily reward already claimed today!', 'warning');
+  // Daily Check-in (Firestore + localStorage)
+  const claimDailyReward = async () => {
+    if (dailyClaimed || claimingDaily) return;
+
+    if (!telegramUser) {
+      showToast('Open in Telegram to claim daily reward.', 'warning');
       return;
     }
 
-    const reward = 250;
-    setEfcBalance(prev => prev + reward);
-    setDailyClaimed(true);
-    setDailyStreak(prev => prev + 1);
-    showToast(`Claimed daily check-in: +${reward} EForce!`, 'success');
+    setClaimingDaily(true);
+    const result = await recordDailyCheckin(telegramUser.id, settings.dailyClaimRewards);
+    setClaimingDaily(false);
 
-    // Trigger premium confetti
-    confetti({
-      particleCount: 80,
-      spread: 60,
-      origin: { y: 0.6 },
-      colors: ['#00E5FF', '#B388FF', '#FFD700'],
-    });
+    if (result.success) {
+      setEfcBalance(prev => prev + result.reward);
+      setDailyClaimed(true);
+      setDailyStreak(result.newStreak);
+      localStorage.setItem('lastClaimDate', new Date().toISOString().slice(0, 10));
+      localStorage.setItem('dailyStreak', String(result.newStreak));
+      showToast(`🎁 Day ${result.newStreak} reward: +${result.reward.toLocaleString()} EForce!`, 'success');
+      confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 }, colors: ['#FF8A00', '#00E5FF', '#B388FF'] });
+    } else {
+      showToast(result.reason || 'Already claimed today!', result.reason ? 'error' : 'warning');
+    }
   };
 
-  const handleEnergyRefill = () => {
-    setEnergy(maxEnergy);
-    showToast('Energy fully recharged!', 'success');
-    confetti({
-      particleCount: 30,
-      spread: 40,
-      origin: { y: 0.8 },
-      colors: ['#00E5FF', '#00FF88']
-    });
+  // Auto Miner
+  const handleStartAutoMiner = async () => {
+    if (autoMinerCooldownLeft > 0) {
+      const hrs = Math.floor(autoMinerCooldownLeft / 3600);
+      const mins = Math.floor((autoMinerCooldownLeft % 3600) / 60);
+      showToast(`Cooldown: ${hrs}h ${mins}m remaining.`, 'warning');
+      return;
+    }
+    if (autoMinerRunning) return;
+
+    if (settings.autoMinerPremiumOnly && !telegramUser?.isPremium) {
+      showToast('Auto Miner is for Telegram Premium users only.', 'warning');
+      return;
+    }
+
+    if (telegramUser) {
+      const result = await startAutoMinerSession(telegramUser.id, settings.autoMinerCooldown);
+      if (!result.success) {
+        showToast(result.reason || 'Cannot start miner.', 'warning');
+        return;
+      }
+    }
+
+    localStorage.setItem('autoMinerLastUsed', String(Date.now()));
+    setAutoMinerRunning(true);
+    setAutoMinerSeconds(0);
+    showToast('⛏️ Auto Miner started! Mining for ' + (settings.autoMinerDuration / 60).toFixed(0) + ' minutes...', 'success');
+
+    // Mining countdown
+    if (autoMinerIntervalRef.current) clearInterval(autoMinerIntervalRef.current);
+    autoMinerIntervalRef.current = setInterval(async () => {
+      setAutoMinerSeconds(prev => {
+        const newVal = prev + 1;
+        if (newVal >= settings.autoMinerDuration) {
+          clearInterval(autoMinerIntervalRef.current!);
+          setAutoMinerRunning(false);
+          const reward = settings.autoMinerReward;
+          setEfcBalance(p => p + reward);
+          if (telegramUser) endAutoMinerSession(telegramUser.id, reward).catch(() => {});
+          showToast(`⛏️ Mining complete! +${reward.toLocaleString()} EForce earned!`, 'success');
+          confetti({ particleCount: 60, spread: 55, origin: { y: 0.7 }, colors: ['#FF8A00', '#FFD700'] });
+          // Start cooldown
+          startCooldownCountdown(settings.autoMinerCooldown);
+        }
+        return newVal;
+      });
+    }, 1000);
   };
 
-  // Dynamic leaderboard users mapping from Firestore
-  const tapLeaderboardData = dbUsers.length > 0 
-    ? dbUsers.map((u, idx) => ({
-        rank: idx + 1,
-        name: `${u.firstName} ${u.lastName}`.trim() || u.username || 'EForce Member',
-        points: u.points ?? 0,
-        referrals: u.referrals ?? 0,
-        premium: u.isTelegramPremium ?? false
-      }))
-    : [
-        { rank: 1, name: `${getDisplayName(telegramUser)} (You)`, points: efcBalance, referrals: referralsCount, premium: telegramUser?.isPremium ?? false }
-      ];
+  const handleStopAutoMiner = () => {
+    if (autoMinerIntervalRef.current) clearInterval(autoMinerIntervalRef.current);
+    setAutoMinerRunning(false);
+    setAutoMinerSeconds(0);
+    showToast('Auto Miner stopped.', 'info');
+  };
 
-  const referralLeaderboardData = dbUsers.length > 0 
-    ? dbUsers.map((u, idx) => ({
-        rank: idx + 1,
-        name: `${u.firstName} ${u.lastName}`.trim() || u.username || 'EForce Member',
-        points: u.points ?? 0,
-        referrals: u.referrals ?? 0,
-        premium: u.isTelegramPremium ?? false
-      }))
-    : [
-        { rank: 1, name: `${getDisplayName(telegramUser)} (You)`, points: efcBalance, referrals: referralsCount, premium: telegramUser?.isPremium ?? false }
-      ];
-
-  // Append current user to local leaderboard array if they aren't already listed in top query results
-  const isCurrentUserInLeaderboard = dbUsers.some(u => u.telegramId === telegramUser?.id);
-  if (dbUsers.length > 0 && !isCurrentUserInLeaderboard && telegramUser) {
-    const userItem = {
-      rank: dbUsers.length + 1,
-      name: `${getDisplayName(telegramUser)} (You)`,
-      points: efcBalance,
-      referrals: referralsCount,
-      premium: telegramUser.isPremium
+  useEffect(() => {
+    return () => {
+      if (autoMinerIntervalRef.current) clearInterval(autoMinerIntervalRef.current);
+      if (autoMinerCooldownRef.current) clearInterval(autoMinerCooldownRef.current);
     };
-    tapLeaderboardData.push(userItem);
-    referralLeaderboardData.push(userItem);
-  }
+  }, []);
 
-  const activeLeaderboard = leaderboardTab === 'tap' 
-    ? [...tapLeaderboardData].sort((a, b) => b.points - a.points).map((item, idx) => ({ ...item, rank: idx + 1 }))
-    : [...referralLeaderboardData].sort((a, b) => b.referrals - a.referrals).map((item, idx) => ({ ...item, rank: idx + 1 }));
+  const miningProgress = autoMinerRunning
+    ? (autoMinerSeconds / settings.autoMinerDuration) * 100
+    : 0;
 
+  const formatCountdown = (secs: number) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  };
+
+  const energyPercent = Math.min((energy / maxEnergy) * 100, 100);
+  const displayName = telegramUser ? getDisplayName(telegramUser) : 'EForce Miner';
+  const shortName = telegramUser ? getShortName(telegramUser) : 'E';
+  const withdrawMinReferrals = settings.withdrawMinReferrals;
+  const referralProgress = Math.min((referralsCount / withdrawMinReferrals) * 100, 100);
 
   return (
-    <div className="flex flex-col gap-6 pb-28">
-      {/* Hero Greeting Section */}
+    <div className="flex flex-col gap-5 pb-28">
+      {/* Welcome Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xs font-semibold text-accent-cyan tracking-widest uppercase mb-1 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse"></span>
-            Elite Member
-          </h2>
-          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-1.5">
-            Hello {getShortName(telegramUser)} <span className="animate-bounce origin-bottom">👋</span>
-            {telegramUser?.isPremium && (
-              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-gradient-to-r from-accent-purple via-accent-cyan to-accent-blue text-white shadow-[0_0_15px_rgba(0,229,255,0.4)] relative overflow-hidden group">
-                <span className="absolute inset-0 w-full h-full bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-                👑 Premium
-              </span>
-            )}
+          <h1 className="text-xl font-black text-white tracking-tight">
+            Hey, {displayName.split(' ')[0]} 👋
           </h1>
+          <p className="text-[10px] text-slate-500 mt-0.5 font-semibold uppercase tracking-widest">
+            EForce Mining Dashboard
+          </p>
         </div>
-
-        <button 
-          onClick={() => setShowLeaderboard(true)}
-          className="flex items-center gap-1.5 bg-accent-purple/10 border border-accent-purple/20 px-3.5 py-1.5 rounded-full shadow-[0_0_15px_rgba(179,136,255,0.06)] hover:bg-accent-purple/20 transition-all cursor-pointer"
-        >
-          <Trophy size={14} className="text-accent-gold" />
-          <span className="text-xs font-bold text-accent-purple tracking-wide uppercase">Leaderboard</span>
-        </button>
-      </div>
-
-      {/* Primary Balance Display */}
-      <div className="glass-panel p-6 rounded-[24px] relative overflow-hidden flex flex-col items-center">
-        {/* Subtle decorative lights */}
-        <div className="absolute top-0 left-0 w-24 h-24 bg-accent-cyan/5 rounded-full filter blur-xl"></div>
-        <div className="absolute bottom-0 right-0 w-24 h-24 bg-accent-purple/5 rounded-full filter blur-xl"></div>
-
-        <span className="text-xs text-slate-400 font-medium tracking-wider uppercase mb-1">Total Available Balance</span>
-        <div className="flex items-baseline gap-2 mb-4">
-          <span className="text-4xl font-extrabold tracking-tight text-white font-display">
-            {efcBalance.toLocaleString()}
-          </span>
-          <span className="text-sm font-bold text-accent-cyan tracking-wider">EForce</span>
-        </div>
-
-        <div className="w-full h-[1px] bg-white/5 mb-4"></div>
-
-        <div className="flex justify-between w-full text-center">
-          <div className="flex-1">
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest block mb-0.5">Crypto Asset</span>
-            <span className="text-sm font-bold text-accent-usdt flex items-center justify-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-accent-usdt"></span>
-              ${usdtBalance.toFixed(2)} USDT
-            </span>
-          </div>
-          <div className="w-[1px] bg-white/5"></div>
-          <div className="flex-1">
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest block mb-0.5">Est. EForce Value</span>
-            <span className="text-xs font-semibold text-slate-300">
-              ${(efcBalance * 0.0015).toFixed(2)} USD
-            </span>
-          </div>
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FF8A00] to-[#FF5500] flex items-center justify-center text-white font-black text-sm shadow-[0_0_16px_rgba(255,138,0,0.3)]">
+          {shortName[0]?.toUpperCase()}
         </div>
       </div>
 
-      {/* Hero 3D Coin Section */}
-      <div className="flex flex-col items-center my-2 select-none relative">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-[11px] text-slate-400 tracking-widest uppercase font-medium">Tap to Mine EForce</span>
-          {combo > 1 && (
-            <span className="text-xs font-black text-accent-purple bg-accent-purple/10 border border-accent-purple/20 px-2 py-0.5 rounded-full animate-bounce">
-              {combo}x Combo
-            </span>
-          )}
+      {/* Balance Cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="glass-panel p-4 rounded-[20px] border-white/5 flex flex-col gap-1">
+          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">EForce Points</span>
+          <span className="text-xl font-black text-[#FF8A00]">{efcBalance.toLocaleString()}</span>
+          <span className="text-[9px] text-slate-500">≈ {(efcBalance / (settings.swapRate || 1000)).toFixed(4)} EST</span>
         </div>
-        
-        <div
-          onClick={handleCoinClick}
-          className="relative w-52 h-52 flex items-center justify-center cursor-pointer active:scale-95 transition-transform duration-100"
-        >
-          {/* Outer glowing aura */}
-          <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-accent-cyan/10 to-accent-purple/10 filter blur-2xl animate-pulse"></div>
-          
-          {/* Cinematic Coin design */}
-          <motion.div
-            animate={isSpinning ? { rotateY: 180 } : { rotateY: 0 }}
-            transition={{ duration: 0.4, ease: 'easeOut' }}
-            className="w-44 h-44 rounded-full relative z-10 p-1.5 select-none shadow-[0_15px_45px_rgba(0,0,0,0.6)]"
-            style={{ transformStyle: 'preserve-3d' }}
-          >
-            {/* Front Coin Face */}
-            <div className="absolute inset-0 rounded-full flex items-center justify-center overflow-hidden">
-              <img 
-                src="/coin-logo.jpg" 
-                alt="Elite Force Coin" 
-                className="w-full h-full object-cover rounded-full select-none pointer-events-none"
-                draggable={false}
-              />
-              {/* Gloss Reflection overlay */}
-              <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-gradient-to-tr from-transparent via-white/8 to-transparent rotate-45 pointer-events-none"></div>
-            </div>
-
-            {/* Back Coin Face (visible during spin) */}
-            <div 
-              className="absolute inset-0 rounded-full flex items-center justify-center overflow-hidden"
-              style={{ transform: 'rotateY(180deg)', backfaceVisibility: 'hidden' }}
-            >
-              <img 
-                src="/coin-logo.jpg" 
-                alt="Elite Force Coin" 
-                className="w-full h-full object-cover rounded-full select-none pointer-events-none"
-                draggable={false}
-              />
-              <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-gradient-to-tr from-transparent via-white/8 to-transparent rotate-45 pointer-events-none"></div>
-            </div>
-          </motion.div>
-
-          {/* Render click particle numbers */}
-          <AnimatePresence>
-            {clicks.map(click => (
-              <motion.span
-                key={click.id}
-                initial={{ opacity: 1, y: click.y - 20, x: click.x, scale: 0.8 }}
-                animate={{ opacity: 0, y: click.y - 120, scale: 1.3 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.8, ease: 'easeOut' }}
-                className="absolute text-xl font-black text-accent-cyan drop-shadow-[0_2px_8px_rgba(0,229,255,0.5)] z-20 pointer-events-none select-none font-display"
-              >
-                +{click.value} EForce
-              </motion.span>
-            ))}
-          </AnimatePresence>
+        <div className="glass-panel p-4 rounded-[20px] border-white/5 flex flex-col gap-1">
+          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">USDT Balance</span>
+          <span className="text-xl font-black text-accent-success">${usdtBalance.toFixed(2)}</span>
+          <span className="text-[9px] text-slate-500">Referrals: {referralsCount}/{withdrawMinReferrals}</span>
         </div>
+      </div>
 
-        {/* Energy system stats & progress bar */}
-        <div className="w-full max-w-[240px] mt-4 flex flex-col gap-1.5 items-center">
-          <div className="flex justify-between w-full text-xs font-bold text-slate-300 px-1">
-            <span className="flex items-center gap-1">
-              <Bolt size={13} className="text-accent-gold" />
-              <span>Energy</span>
-            </span>
-            <span>{energy} / {maxEnergy}</span>
-          </div>
-          <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5 p-[1px]">
-            <div 
-              className="h-full bg-gradient-to-r from-accent-cyan via-accent-blue to-accent-purple rounded-full transition-all duration-300"
-              style={{ width: `${(energy / maxEnergy) * 100}%` }}
+      {/* Main Coin Tap Area */}
+      <div className="relative flex flex-col items-center gap-4">
+        {/* Energy Bar */}
+        <div className="w-full flex items-center gap-2">
+          <Zap size={12} className="text-[#FF8A00] shrink-0" />
+          <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-gradient-to-r from-[#FF8A00] to-[#FFD700] rounded-full"
+              animate={{ width: `${energyPercent}%` }}
+              transition={{ duration: 0.3 }}
             />
           </div>
+          <span className="text-[9px] text-slate-500 font-bold shrink-0">{energy}/{maxEnergy}</span>
         </div>
-      </div>
 
-      {/* Boosters Panel */}
-      <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-3">
-        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">EForce Upgrades & Boosters</span>
-        <div className="grid grid-cols-2 gap-3">
-          {/* Booster 1: Auto Tap */}
-          <button
-            onClick={() => {
-              setAutoTapActive(!autoTapActive);
-              showToast(autoTapActive ? 'Auto-Tap Booster Deactivated' : 'Auto-Tap Booster Activated (+5/sec)', 'info');
-            }}
-            className={`p-3.5 rounded-[18px] border text-left flex flex-col gap-1 transition-all ${
-              autoTapActive 
-                ? 'bg-accent-cyan/10 border-accent-cyan/35 text-white' 
-                : 'bg-white/5 border-white/8 text-slate-400 hover:bg-white/10'
-            }`}
-          >
-            <span className="text-xs font-extrabold text-white flex items-center gap-1">
-              <Bolt size={12} className={autoTapActive ? 'text-accent-cyan' : 'text-slate-400'} />
-              Auto Miner
-            </span>
-            <span className="text-[9px] text-slate-400">
-              {autoTapActive ? 'Mining active...' : 'Idle - Tap to turn ON'}
-            </span>
-          </button>
-
-          {/* Booster 2: Instant Refill */}
-          <button
-            onClick={handleEnergyRefill}
-            className="p-3.5 rounded-[18px] bg-white/5 border border-white/8 hover:bg-white/10 text-left flex flex-col gap-1 transition-all"
-          >
-            <span className="text-xs font-extrabold text-white flex items-center gap-1">
-              <Zap size={12} className="text-accent-gold" />
-              Full Recharge
-            </span>
-            <span className="text-[9px] text-slate-400">Instant energy restore</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Interactive Daily Reward & Streak */}
-      <div className="glass-panel p-5 rounded-[24px] border-white/6 relative overflow-hidden">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-accent-gold/10 text-accent-gold border border-accent-gold/15">
-              <Flame size={15} />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white">Daily Check-In</h3>
-              <p className="text-[10px] text-slate-400">Current Streak: <span className="text-accent-gold font-bold">{dailyStreak} Days</span></p>
-            </div>
+        {/* Coin */}
+        <motion.div
+          onClick={handleCoinClick}
+          animate={isSpinning ? { scale: 0.93, rotateY: 15 } : { scale: 1, rotateY: 0 }}
+          transition={{ duration: 0.15 }}
+          className="relative w-44 h-44 rounded-full cursor-pointer select-none"
+          style={{ perspective: 800 }}
+        >
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#FF8A00]/30 to-[#FF5500]/20 blur-2xl animate-pulse" />
+          <div className="relative w-full h-full rounded-full bg-gradient-to-br from-[#FF8A00] via-[#FF6B00] to-[#FF5500] border-4 border-[#FFD700]/30 flex items-center justify-center shadow-[0_0_40px_rgba(255,138,0,0.4),_inset_0_0_30px_rgba(255,215,0,0.1)]">
+            <div className="absolute inset-3 rounded-full border border-[#FFD700]/20" />
+            <span className="text-6xl select-none" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))' }}>⚡</span>
           </div>
 
+          {/* Floating click texts */}
+          <AnimatePresence>
+            {clicks.map((click) => (
+              <motion.div
+                key={click.id}
+                initial={{ opacity: 1, y: 0, x: click.x - 88 }}
+                animate={{ opacity: 0, y: -60 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.9 }}
+                className="absolute pointer-events-none font-black text-[#FFD700] text-sm drop-shadow-lg"
+                style={{ top: click.y - 16, left: 0 }}
+              >
+                +{click.value}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* Combo indicator */}
+        {combo > 5 && (
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="flex items-center gap-1 bg-[#FF8A00]/15 border border-[#FF8A00]/25 px-3 py-1 rounded-full"
+          >
+            <Flame size={10} className="text-[#FF8A00]" />
+            <span className="text-[10px] font-black text-[#FF8A00]">x{combo} COMBO</span>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Daily Check-in */}
+      <div className="glass-panel p-4 rounded-[22px] border-white/6 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Daily Check-in</span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <Flame size={11} className="text-[#FF8A00]" />
+              <span className="text-xs font-black text-white">{dailyStreak} Day Streak</span>
+            </div>
+          </div>
           <button
             onClick={claimDailyReward}
-            disabled={dailyClaimed}
-            className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all duration-300 ${
-              dailyClaimed 
-                ? 'bg-accent-success/10 border border-accent-success/20 text-accent-success pointer-events-none'
-                : 'bg-accent-gold text-bg-primary hover:shadow-[0_0_20px_rgba(255,215,0,0.3)] font-semibold'
+            disabled={dailyClaimed || claimingDaily}
+            className={`h-9 px-5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+              dailyClaimed
+                ? 'bg-white/5 text-slate-500 border border-white/10 cursor-not-allowed'
+                : 'bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white shadow-[0_0_14px_rgba(255,138,0,0.3)]'
             }`}
           >
-            {dailyClaimed ? 'Claimed ✓' : 'Claim Reward'}
+            {claimingDaily ? (
+              <span className="w-3 h-3 border-2 border-t-transparent border-white rounded-full animate-spin" />
+            ) : (
+              <Sparkles size={11} />
+            )}
+            {dailyClaimed ? 'Claimed ✓' : 'Claim'}
           </button>
         </div>
 
-        {/* Streak Grid indicators */}
-        <div className="grid grid-cols-7 gap-1.5">
-          {Array.from({ length: 7 }).map((_, idx) => {
-            const dayNum = idx + 1;
-            const isCompleted = dayNum <= dailyStreak || (dayNum === 5 && dailyClaimed);
-            const isCurrent = dayNum === dailyStreak + (dailyClaimed ? 0 : 1);
-            
+        {/* Streak Days Row */}
+        <div className="flex gap-1.5">
+          {(settings.dailyClaimRewards || DEFAULT_ADMIN_SETTINGS.dailyClaimRewards).map((reward, i) => {
+            const dayNum = i + 1;
+            const isCurrent = ((dailyStreak - 1) % 7) === i;
+            const isPast = dailyStreak >= dayNum;
             return (
-              <div 
-                key={idx}
-                className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all ${
-                  isCompleted 
-                    ? 'bg-accent-gold/10 border-accent-gold/30 text-accent-gold' 
-                    : isCurrent 
-                      ? 'bg-white/5 border-accent-cyan/40 text-accent-cyan shadow-[0_0_10px_rgba(0,229,255,0.05)]' 
-                      : 'bg-white/[0.02] border-white/5 text-slate-500'
+              <div
+                key={i}
+                className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-xl border transition-all ${
+                  isCurrent && !dailyClaimed
+                    ? 'border-[#FF8A00]/50 bg-[#FF8A00]/10'
+                    : isPast
+                    ? 'border-accent-success/30 bg-accent-success/5'
+                    : 'border-white/5 bg-white/[0.02]'
                 }`}
               >
-                <span className="text-[9px] uppercase font-bold tracking-wider mb-1">D{dayNum}</span>
-                {isCompleted ? (
-                  <Sparkles size={11} className="text-accent-gold" />
-                ) : (
-                  <span className="text-[10px] font-bold">+{dayNum * 50}</span>
-                )}
+                <span className="text-[7px] text-slate-500 font-bold">D{dayNum}</span>
+                <span className="text-[9px] font-black text-white">{reward >= 1000 ? (reward/1000).toFixed(1)+'k' : reward}</span>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Progress Card */}
-      <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-3">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-slate-400 font-medium">Rank Up Quest</span>
-          <span className="text-accent-purple font-semibold">80% Completed</span>
+      {/* Auto Miner */}
+      <div className="glass-panel p-4 rounded-[22px] border-white/6 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Auto Miner</span>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {autoMinerRunning
+                ? `Mining... ${formatCountdown(settings.autoMinerDuration - autoMinerSeconds)} left`
+                : autoMinerCooldownLeft > 0
+                ? `Cooldown: ${formatCountdown(autoMinerCooldownLeft)}`
+                : `Earn +${settings.autoMinerReward.toLocaleString()} EForce in ${settings.autoMinerDuration / 60}min`}
+            </p>
+          </div>
+          <button
+            onClick={autoMinerRunning ? handleStopAutoMiner : handleStartAutoMiner}
+            disabled={autoMinerCooldownLeft > 0 && !autoMinerRunning}
+            className={`h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
+              autoMinerRunning
+                ? 'bg-accent-danger/15 border border-accent-danger/25 text-accent-danger'
+                : autoMinerCooldownLeft > 0
+                ? 'bg-white/5 border border-white/10 text-slate-500 cursor-not-allowed'
+                : 'bg-gradient-to-r from-[#FF8A00] to-[#FF5500] text-white shadow-[0_0_14px_rgba(255,138,0,0.25)]'
+            }`}
+          >
+            {autoMinerRunning ? <><Square size={10} /> Stop</> : <><Play size={10} /> Start</>}
+          </button>
         </div>
-        
-        {/* Progress Bar Container */}
-        <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
-          <motion.div 
-            initial={{ width: 0 }}
-            animate={{ width: '80%' }}
-            transition={{ duration: 1, ease: 'easeOut' }}
-            className="h-full bg-gradient-to-r from-accent-cyan to-accent-purple rounded-full"
+
+        {/* Mining progress bar */}
+        {autoMinerRunning && (
+          <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-gradient-to-r from-[#FF8A00] to-[#FFD700] rounded-full"
+              animate={{ width: `${miningProgress}%` }}
+              transition={{ duration: 0.8 }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Referral Progress */}
+      <div className="glass-panel p-4 rounded-[22px] border-white/6 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Referral Progress</span>
+          <span className="text-[10px] font-black text-[#FF8A00]">{referralsCount}/{withdrawMinReferrals}</span>
+        </div>
+        <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-gradient-to-r from-[#FF8A00] to-[#FFD700] rounded-full"
+            animate={{ width: `${referralProgress}%` }}
+            transition={{ duration: 0.5 }}
           />
         </div>
-
-        <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
-          <span>Earn 10k EForce points</span>
-          <span className="flex items-center text-accent-cyan gap-0.5 cursor-pointer">
-            View Tasks <ChevronRight size={12} />
+        <div className="flex items-center justify-between">
+          <span className="text-[9px] text-slate-500">
+            {referralsCount >= withdrawMinReferrals
+              ? '✅ Withdrawal unlocked!'
+              : `${withdrawMinReferrals - referralsCount} more referrals to unlock withdrawal`}
           </span>
+          <ChevronRight size={12} className="text-slate-500" />
         </div>
       </div>
 
-      {/* Statistics Section */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="glass-panel p-3.5 rounded-[20px] text-center border-white/5 flex flex-col justify-center items-center">
-          <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">Referrals</span>
-          <span className="text-base font-bold text-white">{referralsCount} / 10</span>
-          <span className="text-[8px] text-slate-400 mt-0.5">Active</span>
+      {/* Leaderboard Button */}
+      <button
+        onClick={() => setShowLeaderboard(true)}
+        className="glass-panel p-4 rounded-[22px] border-white/6 flex items-center justify-between hover:bg-white/[0.04] transition-all cursor-pointer w-full"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-[12px] bg-accent-purple/15 border border-accent-purple/25 flex items-center justify-center">
+            <Trophy size={15} className="text-accent-purple" />
+          </div>
+          <div className="text-left">
+            <span className="text-[11px] font-bold text-white block">Leaderboard</span>
+            <span className="text-[9px] text-slate-500">Top EForce miners</span>
+          </div>
         </div>
-        <div className="glass-panel p-3.5 rounded-[20px] text-center border-white/5 flex flex-col justify-center items-center">
-          <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">Global Users</span>
-          <span className="text-base font-bold text-accent-cyan flex items-center gap-1 justify-center">
-            <Zap size={12} className="text-accent-cyan animate-pulse" />
-            4.2M
-          </span>
-          <span className="text-[8px] text-slate-400 mt-0.5">Total Registered</span>
-        </div>
-        <div className="glass-panel p-3.5 rounded-[20px] text-center border-white/5 flex flex-col justify-center items-center">
-          <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">Daily Mining</span>
-          <span className="text-base font-bold text-accent-purple">+1.8K</span>
-          <span className="text-[8px] text-slate-400 mt-0.5">EForce / hr</span>
-        </div>
-      </div>
+        <ChevronRight size={14} className="text-slate-500" />
+      </button>
 
-      {/* 6. Beautiful Premium Leaderboard Modal Overlay */}
+      {/* Leaderboard Modal */}
       <AnimatePresence>
         {showLeaderboard && (
-          <div className="absolute inset-0 z-50 flex flex-col bg-[#050816] p-5 pt-12 overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                <Trophy className="text-accent-gold" size={20} />
-                <span>EForce Hall of Fame</span>
-              </h2>
-              <button 
-                onClick={() => setShowLeaderboard(false)}
-                className="p-2 rounded-xl bg-white/5 border border-white/8 text-slate-400 hover:text-white transition-all shrink-0 cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Leaderboard Tabs: Tap vs Referral */}
-            <div className="grid grid-cols-2 gap-2 bg-[#12182D] p-1 rounded-2xl border border-white/5 mb-4">
-              <button 
-                onClick={() => setLeaderboardTab('tap')}
-                className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  leaderboardTab === 'tap' 
-                    ? 'bg-accent-cyan/15 border border-accent-cyan/25 text-accent-cyan shadow' 
-                    : 'text-slate-400 hover:text-slate-300'
-                }`}
-              >
-                Tap Rank
-              </button>
-              <button 
-                onClick={() => setLeaderboardTab('referral')}
-                className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  leaderboardTab === 'referral' 
-                    ? 'bg-accent-purple/15 border border-accent-purple/25 text-accent-purple shadow' 
-                    : 'text-slate-400 hover:text-slate-300'
-                }`}
-              >
-                Referral Rank
-              </button>
-            </div>
-
-            {/* Period selector */}
-            <div className="flex gap-2 mb-4 justify-between">
-              {['today', 'weekly', 'monthly', 'alltime'].map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setLeaderboardPeriod(p as any)}
-                  className={`flex-1 py-1 rounded-lg text-[10px] uppercase font-bold border transition-all cursor-pointer ${
-                    leaderboardPeriod === p 
-                      ? 'bg-white/5 border-white/10 text-white font-black' 
-                      : 'bg-transparent border-transparent text-slate-500 hover:text-slate-400'
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-
-            {/* List */}
-            <div className="flex flex-col gap-2">
-              {activeLeaderboard.map((user, idx) => {
-                const rankColor = user.rank === 1 ? 'text-accent-gold border-accent-gold/25 bg-accent-gold/5' :
-                                  user.rank === 2 ? 'text-slate-300 border-white/10 bg-white/[0.02]' :
-                                  user.rank === 3 ? 'text-[#CD7F32] border-[#CD7F32]/25 bg-[#CD7F32]/5' :
-                                  'text-slate-400 border-white/5';
-                
-                return (
-                  <div 
-                    key={idx}
-                    className={`glass-panel p-3.5 rounded-[20px] border flex items-center justify-between transition-all ${
-                      user.name.includes('(You)') ? 'border-accent-cyan/30 bg-accent-cyan/[0.005]' : 'border-white/5'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      {/* Rank circle */}
-                      <div className={`w-6 h-6 rounded-full border flex items-center justify-center text-xs font-black shrink-0 ${rankColor}`}>
-                        {user.rank}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4"
+            onClick={() => setShowLeaderboard(false)}
+          >
+            <motion.div
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="glass-panel w-full max-w-[420px] rounded-[28px] border-white/8 p-5 flex flex-col gap-4 max-h-[70vh] overflow-hidden"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-white flex items-center gap-2">
+                  <Trophy size={14} className="text-accent-purple" /> Top Miners
+                </h3>
+                <button onClick={() => setShowLeaderboard(false)} className="text-slate-400 hover:text-white cursor-pointer text-xs">Close</button>
+              </div>
+              <div className="flex flex-col gap-2 overflow-y-auto">
+                {dbUsers.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500 text-xs">No miners yet. Be the first!</div>
+                ) : (
+                  dbUsers.map((u, i) => (
+                    <div key={u.telegramId} className="flex items-center gap-3 bg-white/[0.02] border border-white/4 rounded-[14px] p-2.5">
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
+                        i === 0 ? 'bg-[#FFD700]/20 text-[#FFD700]' :
+                        i === 1 ? 'bg-slate-300/20 text-slate-300' :
+                        i === 2 ? 'bg-[#CD7F32]/20 text-[#CD7F32]' :
+                        'bg-white/5 text-slate-500'
+                      }`}>{i + 1}</span>
+                      <div className="w-7 h-7 rounded-full bg-[#1A1F37] flex items-center justify-center text-[10px] font-bold text-slate-300 shrink-0 overflow-hidden">
+                        {u.photoUrl
+                          ? <img src={u.photoUrl} alt="" className="w-full h-full object-cover" />
+                          : (u.firstName?.[0] ?? 'E').toUpperCase()}
                       </div>
-
-                      {/* Avatar */}
-                      <div className="w-8 h-8 rounded-full bg-white/5 border border-white/8 flex items-center justify-center text-slate-300 text-xs font-bold relative shrink-0">
-                        {user.name.substring(0, 2).toUpperCase()}
-                        {user.premium && (
-                          <div className="absolute top-[-3px] right-[-3px] w-3 h-3 rounded-full bg-accent-purple flex items-center justify-center text-[7px]" title="Premium Member">
-                            ★
-                          </div>
-                        )}
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] font-bold text-white truncate block">{u.firstName} {u.lastName}</span>
+                        <span className="text-[8px] text-slate-500">@{u.username || 'user'}</span>
                       </div>
-
-                      {/* User Info */}
-                      <div className="min-w-0">
-                        <h4 className="text-xs font-bold text-white flex items-center gap-1">
-                          <span className="truncate">{user.name}</span>
-                          {user.premium && (
-                            <span className="text-[9px] bg-accent-purple/15 text-accent-purple border border-accent-purple/20 px-1 rounded font-bold uppercase tracking-wider shrink-0 scale-90">
-                              Premium
-                            </span>
-                          )}
-                        </h4>
-                        <span className="text-[9px] text-slate-500 font-semibold block">
-                          Level {7 - user.rank} Node
-                        </span>
-                      </div>
+                      <span className="text-[10px] font-black text-[#FF8A00] shrink-0">{(u.points || 0).toLocaleString()}</span>
                     </div>
-
-                    <div className="text-right shrink-0">
-                      <span className="text-xs font-extrabold text-white font-display block">
-                        {leaderboardTab === 'tap' 
-                          ? `${user.points.toLocaleString()} EForce` 
-                          : `${user.referrals} Affiliates`}
-                      </span>
-                      <span className="text-[8px] text-slate-500 uppercase tracking-widest font-bold">
-                        {leaderboardTab === 'tap' ? 'Mined' : 'Invites'}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-6 p-4 rounded-2xl bg-white/[0.02] border border-white/5 text-center text-[10px] text-slate-500 leading-normal">
-              🏆 Leaderboard resets dynamically at 00:00 UTC. Top 100 players receive EForce Bonus Airdrop distributions weekly!
-            </div>
-          </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

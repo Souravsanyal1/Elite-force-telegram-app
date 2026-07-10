@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Share2, Users, Gift, Check, Lock, Unlock, HelpCircle } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import { Copy, Share2, Users, Gift, Check, Lock, Unlock } from 'lucide-react';
+import { getReferralLink, getUserReferrals, type ReferralRecord } from '../lib/referralService';
+import { subscribeToAdminSettings, DEFAULT_ADMIN_SETTINGS, type AdminSettings } from '../lib/adminSettingsService';
+import type { TelegramUser } from '../lib/telegramUser';
 
 interface ReferralProps {
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
@@ -10,23 +12,54 @@ interface ReferralProps {
   setHasUnlockedWithdrawal: (unlocked: boolean) => void;
   referralsCount: number;
   setReferralsCount: React.Dispatch<React.SetStateAction<number>>;
+  telegramUser: TelegramUser | null;
 }
 
-export const Referral: React.FC<ReferralProps> = ({ 
-  showToast, 
-  setEfcBalance, 
-  hasUnlockedWithdrawal, 
+export const Referral: React.FC<ReferralProps> = ({
+  showToast,
+  hasUnlockedWithdrawal,
   setHasUnlockedWithdrawal,
   referralsCount,
-  setReferralsCount
+  telegramUser,
 }) => {
   const [copied, setCopied] = useState(false);
-  const referralLink = "https://t.me/EliteForceBot?start=efc_r_sourav";
+  const [referralRecords, setReferralRecords] = useState<ReferralRecord[]>([]);
+  const [_loadingReferrals, setLoadingReferrals] = useState(false);
+  void _loadingReferrals;
+  const [settings, setSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS);
+
+  // Admin settings (real-time)
+  useEffect(() => {
+    const unsub = subscribeToAdminSettings(setSettings);
+    return unsub;
+  }, []);
+
+  // Get real referral link
+  const referralLink = telegramUser
+    ? getReferralLink(telegramUser.id)
+    : 'https://t.me/EliteForceBot?start=ref_0';
+
+  // Load referral records from Firestore
+  useEffect(() => {
+    if (!telegramUser) return;
+    setLoadingReferrals(true);
+    getUserReferrals(telegramUser.id).then(records => {
+      setReferralRecords(records);
+      setLoadingReferrals(false);
+    });
+  }, [telegramUser, referralsCount]);
+
+  // Check if withdrawal unlocked
+  useEffect(() => {
+    if (referralsCount >= settings.withdrawMinReferrals && !hasUnlockedWithdrawal) {
+      setHasUnlockedWithdrawal(true);
+    }
+  }, [referralsCount, settings.withdrawMinReferrals]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(referralLink);
     setCopied(true);
-    showToast("Referral link copied to clipboard!", "success");
+    showToast('Referral link copied!', 'success');
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -34,222 +67,193 @@ export const Referral: React.FC<ReferralProps> = ({
     if (navigator.share) {
       navigator.share({
         title: 'Elite Force (EForce)',
-        text: 'Join Elite Force Web3 platform and mine EForce coins!',
+        text: `Join Elite Force Web3 platform and earn EForce coins! My referral link:`,
         url: referralLink,
-      }).catch(err => console.log(err));
+      }).catch(() => handleCopy());
     } else {
       handleCopy();
     }
   };
 
-  const simulateNewReferral = () => {
-    if (referralsCount >= 10) {
-      showToast("Already reached the max milestone!", "info");
-      return;
-    }
+  const validReferrals = referralRecords.filter(r => r.isValid).length;
+  const suspiciousReferrals = referralRecords.filter(r => !r.isValid).length;
+  const withdrawMinReferrals = settings.withdrawMinReferrals;
+  const referralProgress = Math.min((referralsCount / withdrawMinReferrals) * 100, 100);
+  const isWithdrawalUnlocked = referralsCount >= withdrawMinReferrals;
 
-    const nextCount = referralsCount + 1;
-    setReferralsCount(nextCount);
-    
-    // Add point rewards for new referral
-    setEfcBalance(bal => bal + 1000);
-    showToast("New friend joined! Received +1000 EForce!", "success");
-
-    if (nextCount === 10) {
-      setHasUnlockedWithdrawal(true);
-      showToast("Milestone achieved! EForce Withdrawal feature UNLOCKED!", "success");
-      
-      // Luxury confetti explosion
-      const duration = 3 * 1000;
-      const end = Date.now() + duration;
-
-      (function frame() {
-        confetti({
-          particleCount: 5,
-          angle: 60,
-          spread: 55,
-          origin: { x: 0 },
-          colors: ['#B388FF', '#00E5FF', '#FFD700']
-        });
-        confetti({
-          particleCount: 5,
-          angle: 120,
-          spread: 55,
-          origin: { x: 1 },
-          colors: ['#B388FF', '#00E5FF', '#FFD700']
-        });
-
-        if (Date.now() < end) {
-          requestAnimationFrame(frame);
-        }
-      }());
-    }
-  };
-
-  // SVG circular progress maths
-  const radius = 38;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (Math.min(referralsCount, 10) / 10) * circumference;
+  // Level milestones
+  const milestones = [1, 3, 5, 10, 20, 50];
 
   return (
     <div className="flex flex-col gap-5 pb-28">
-      {/* View Header */}
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">Affiliates</h1>
-        <p className="text-xs text-slate-400 mt-1">Invite friends and unlock elite financial services.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-white">Referrals</h1>
+        <p className="text-xs text-slate-400 mt-1">Invite friends, earn real USDT rewards</p>
       </div>
 
-      {/* Hero 3D Gift Box Card */}
-      <div className="glass-panel p-6 rounded-[24px] border-white/6 relative overflow-hidden flex items-center justify-between">
-        {/* Lights */}
-        <div className="absolute top-0 right-0 w-24 h-24 bg-accent-purple/10 rounded-full filter blur-xl"></div>
-
-        <div className="flex-1 pr-4">
-          <h2 className="text-base font-bold text-white flex items-center gap-1.5 mb-1.5">
-            <Gift size={16} className="text-accent-purple" />
-            Double Reward
-          </h2>
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            Get <span className="text-accent-cyan font-semibold">1,000 EForce</span> for every registered user. Premium Telegram contacts grant you <span className="text-accent-purple font-semibold">5,000 EForce</span>.
-          </p>
+      {/* Stats Row */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="glass-panel p-3 rounded-[18px] border-white/5 flex flex-col gap-0.5">
+          <span className="text-[8px] text-slate-500 uppercase tracking-widest font-bold">Total</span>
+          <span className="text-lg font-black text-white">{referralsCount}</span>
         </div>
-
-        {/* 3D Gift Box SVG illustration */}
-        <div className="relative shrink-0 w-24 h-24 flex items-center justify-center animate-float">
-          <svg width="80" height="80" viewBox="0 0 100 100">
-            <defs>
-              <linearGradient id="boxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#4A1E96" />
-                <stop offset="100%" stopColor="#8A46FF" />
-              </linearGradient>
-              <linearGradient id="ribbonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#00E5FF" />
-                <stop offset="100%" stopColor="#00FF88" />
-              </linearGradient>
-            </defs>
-            {/* Box Back reflection */}
-            <circle cx="50" cy="50" r="35" fill="rgba(179,136,255,0.06)" />
-            {/* Box Body */}
-            <rect x="25" y="40" width="50" height="40" rx="8" fill="url(#boxGrad)" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
-            {/* Lid */}
-            <rect x="20" y="32" width="60" height="12" rx="4" fill="#B388FF" />
-            {/* Vertical Ribbon */}
-            <rect x="46" y="32" width="8" height="48" fill="url(#ribbonGrad)" />
-            {/* Horizontal Ribbon */}
-            <rect x="25" y="56" width="50" height="8" fill="url(#ribbonGrad)" />
-            {/* Bow (Left Loop) */}
-            <path d="M48 32 C38 20, 32 30, 48 32 Z" fill="url(#ribbonGrad)" />
-            {/* Bow (Right Loop) */}
-            <path d="M52 32 C62 20, 68 30, 52 32 Z" fill="url(#ribbonGrad)" />
-            {/* Soft Glow core */}
-            <circle cx="50" cy="32" r="6" fill="#00E5FF" opacity="0.5" filter="blur(2px)" />
-          </svg>
+        <div className="glass-panel p-3 rounded-[18px] border-white/5 flex flex-col gap-0.5">
+          <span className="text-[8px] text-slate-500 uppercase tracking-widest font-bold">Valid</span>
+          <span className="text-lg font-black text-accent-success">{validReferrals}</span>
+        </div>
+        <div className="glass-panel p-3 rounded-[18px] border-white/5 flex flex-col gap-0.5">
+          <span className="text-[8px] text-slate-500 uppercase tracking-widest font-bold">Flagged</span>
+          <span className="text-lg font-black text-accent-warning">{suspiciousReferrals}</span>
         </div>
       </div>
 
-      {/* Progress Ring Card */}
-      <div className="glass-panel p-5 rounded-[24px] border-white/6 flex items-center justify-between">
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Milestone Objective</span>
-          <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-            Unlock Withdrawal Feature
-          </h3>
-          <span className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-            {hasUnlockedWithdrawal ? (
-              <span className="text-accent-success font-bold flex items-center gap-1">
-                <Unlock size={12} /> Unlocked
-              </span>
-            ) : (
-              <span className="text-accent-warning font-semibold flex items-center gap-1">
-                <Lock size={12} /> Locked (Need 10 referrals)
-              </span>
-            )}
-          </span>
-        </div>
-
-        {/* Neon Circular Ring */}
-        <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
-          <svg className="transform -rotate-90 w-full h-full">
-            {/* Track */}
-            <circle
-              cx="40"
-              cy="40"
-              r={radius}
-              className="stroke-white/5 fill-none"
-              strokeWidth="5"
-            />
-            {/* Fill */}
-            <motion.circle
-              cx="40"
-              cy="40"
-              r={radius}
-              className="stroke-accent-purple fill-none drop-shadow-[0_0_6px_rgba(179,136,255,0.4)]"
-              strokeWidth="5"
-              strokeDasharray={circumference}
-              animate={{ strokeDashoffset }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-xs font-black text-white">{referralsCount}</span>
-            <span className="text-[8px] text-slate-500 font-bold uppercase">/ 10</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Referral Link Manager */}
-      <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-3">
-        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Your Unique Invite Link</span>
-        
-        {/* Link Input area */}
-        <div className="flex items-center gap-2 bg-[#12182D]/80 border border-white/8 rounded-[16px] p-2 pl-3.5 relative overflow-hidden">
-          <input
-            type="text"
-            readOnly
-            value={referralLink}
-            className="bg-transparent border-none outline-none text-xs text-slate-300 w-full select-all"
-          />
+      {/* Referral Link Card */}
+      <div className="glass-panel p-4 rounded-[22px] border-white/6 flex flex-col gap-3">
+        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Your Referral Link</span>
+        <div className="flex items-center gap-2 bg-white/[0.04] border border-white/8 rounded-xl px-3 py-2.5">
+          <span className="flex-1 text-[10px] text-slate-300 font-mono truncate">{referralLink}</span>
           <button
             onClick={handleCopy}
-            className="p-2 rounded-xl bg-white/5 border border-white/8 text-slate-300 hover:text-accent-cyan active:scale-95 transition-all shrink-0 cursor-pointer"
+            className="shrink-0 w-7 h-7 rounded-lg bg-[#FF8A00]/15 border border-[#FF8A00]/25 flex items-center justify-center cursor-pointer hover:bg-[#FF8A00]/25 transition-all"
           >
-            {copied ? <Check size={14} className="text-accent-success" /> : <Copy size={14} />}
+            {copied ? <Check size={11} className="text-accent-success" /> : <Copy size={11} className="text-[#FF8A00]" />}
           </button>
         </div>
-
-        {/* Buttons: Invite Friends & Native Share */}
-        <div className="grid grid-cols-2 gap-3 mt-1">
+        <div className="flex gap-2">
+          <button
+            onClick={handleCopy}
+            className="flex-1 h-10 bg-white/5 border border-white/10 text-white text-[10px] font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-white/8 transition-all"
+          >
+            <Copy size={12} /> Copy Link
+          </button>
           <button
             onClick={handleShare}
-            className="h-11 glass-btn rounded-[18px] text-xs font-bold text-white flex items-center justify-center gap-2"
+            className="flex-1 h-10 bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white text-[10px] font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_14px_rgba(255,138,0,0.25)] transition-all"
           >
-            <Share2 size={13} />
-            <span>Share Link</span>
-          </button>
-          
-          <button
-            onClick={simulateNewReferral}
-            className="h-11 rounded-[18px] bg-gradient-to-r from-accent-purple to-accent-blue text-white font-bold text-xs flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(179,136,255,0.25)] hover:shadow-[0_0_25px_rgba(179,136,255,0.4)] active:scale-98 transition-all cursor-pointer"
-          >
-            <Users size={13} />
-            <span>Simulate Invite</span>
+            <Share2 size={12} /> Share Now
           </button>
         </div>
       </div>
 
-      {/* Referral leaderboard info */}
-      <div className="glass-panel p-4 rounded-[20px] border-white/5 flex flex-col gap-2">
-        <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-          <HelpCircle size={13} className="text-accent-cyan" />
-          Milestone Rules & Rewards
-        </h4>
-        <ul className="text-[10px] text-slate-400 list-disc list-inside leading-relaxed flex flex-col gap-1">
-          <li>10 registered affiliates required to unlock general cryptocurrency withdrawals.</li>
-          <li>Top 100 referrers receive a share of the 1,000,000 EForce weekly bonus pool.</li>
-          <li>Invites are verified using automated anti-bot Telegram checks.</li>
-        </ul>
+      {/* Withdrawal Progress */}
+      <div className="glass-panel p-4 rounded-[22px] border-white/6 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {isWithdrawalUnlocked ? (
+              <Unlock size={14} className="text-accent-success" />
+            ) : (
+              <Lock size={14} className="text-slate-500" />
+            )}
+            <span className="text-[11px] font-bold text-white">
+              {isWithdrawalUnlocked ? 'Withdrawal Unlocked! 🎉' : 'Unlock Withdrawal'}
+            </span>
+          </div>
+          <span className="text-[10px] font-black text-[#FF8A00]">
+            {referralsCount}/{withdrawMinReferrals}
+          </span>
+        </div>
+        <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-gradient-to-r from-[#FF8A00] to-[#FFD700] rounded-full"
+            animate={{ width: `${referralProgress}%` }}
+            transition={{ duration: 0.5 }}
+          />
+        </div>
+        {!isWithdrawalUnlocked && (
+          <p className="text-[9px] text-slate-500">
+            {withdrawMinReferrals - referralsCount} more valid referrals needed to unlock withdrawal.
+          </p>
+        )}
       </div>
 
+      {/* Reward Structure */}
+      <div className="glass-panel p-4 rounded-[22px] border-white/6 flex flex-col gap-3">
+        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold flex items-center gap-1.5">
+          <Gift size={11} /> Referral Rewards
+        </span>
+        <div className="flex flex-col gap-1.5">
+          {milestones.map((milestone) => {
+            const isReached = referralsCount >= milestone;
+            return (
+              <div
+                key={milestone}
+                className={`flex items-center justify-between p-2.5 rounded-[14px] border transition-all ${
+                  isReached
+                    ? 'border-accent-success/25 bg-accent-success/5'
+                    : 'border-white/5 bg-white/[0.02]'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black ${
+                    isReached ? 'bg-accent-success/20 text-accent-success' : 'bg-white/5 text-slate-500'
+                  }`}>
+                    {isReached ? '✓' : milestone}
+                  </div>
+                  <span className="text-[10px] text-slate-300 font-semibold">{milestone} Referrals</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-bold text-[#FF8A00]">
+                    +{(settings.referralRewardToken * milestone).toFixed(0)} EST
+                  </span>
+                  <span className="text-[9px] font-bold text-accent-success">
+                    +${(settings.referralRewardUsdt * milestone).toFixed(2)} USDT
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[9px] text-slate-500 text-center">
+          Per valid referral: +{settings.referralRewardToken} EST + ${settings.referralRewardUsdt} USDT
+        </p>
+      </div>
+
+      {/* Referral Records */}
+      {referralRecords.length > 0 && (
+        <div className="glass-panel p-4 rounded-[22px] border-white/6 flex flex-col gap-3">
+          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold flex items-center gap-1.5">
+            <Users size={11} /> Your Referrals
+          </span>
+          <div className="flex flex-col gap-1.5 max-h-[200px] overflow-y-auto pr-0.5">
+            {referralRecords.map((rec) => (
+              <div key={rec.id} className="flex items-center justify-between bg-white/[0.02] border border-white/5 rounded-[12px] p-2.5">
+                <div>
+                  <span className="text-[10px] text-slate-300 font-semibold block">User #{rec.referredId}</span>
+                  <span className="text-[8px] text-slate-500">
+                    {rec.deviceMatch ? '⚠️ Same device' : '✅ Valid join'}
+                  </span>
+                </div>
+                <div className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                  rec.isValid
+                    ? 'text-accent-success border-accent-success/25 bg-accent-success/10'
+                    : 'text-accent-warning border-accent-warning/25 bg-accent-warning/10'
+                }`}>
+                  {rec.isValid ? 'Valid' : 'Flagged'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* How it Works */}
+      <div className="glass-panel p-4 rounded-[22px] border-white/6 flex flex-col gap-2">
+        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">How It Works</span>
+        {[
+          'Share your referral link with friends',
+          'Friend joins via your link & activates account',
+          'You earn EST tokens + USDT per valid referral',
+          `Get ${withdrawMinReferrals} referrals to unlock USDT withdrawal`,
+        ].map((step, i) => (
+          <div key={i} className="flex items-start gap-2.5">
+            <div className="w-5 h-5 rounded-full bg-[#FF8A00]/15 border border-[#FF8A00]/25 flex items-center justify-center text-[8px] font-black text-[#FF8A00] shrink-0 mt-0.5">
+              {i + 1}
+            </div>
+            <span className="text-[10px] text-slate-400">{step}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

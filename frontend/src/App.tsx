@@ -58,7 +58,7 @@ export default function App() {
   const [swapOpen, _setSwapOpen] = useState<boolean>(() => getPersisted('swapOpen', false));
   const [swapRate, _setSwapRate] = useState<number>(() => getPersisted('swapRate', 1000));
   void swapOpen; void _setSwapOpen; void _setSwapRate;
-  const [tokenSale, setTokenSale] = useState(() => getPersisted('tokenSale', {
+  const [tokenSale, _setTokenSale] = useState(() => getPersisted('tokenSale', {
     active: false,
     price: 0.05,
     totalSold: 0,
@@ -66,11 +66,12 @@ export default function App() {
     minPurchase: 10,
     maxPurchase: 1000
   }));
-  const [connectedWallet, setConnectedWallet] = useState<string | null>(() => getPersisted<string | null>('connectedWallet', null));
-  const [connectedAddress, setConnectedAddress] = useState<string | null>(() => getPersisted<string | null>('connectedAddress', null));
+  const [connectedWallet, _setConnectedWallet] = useState<string | null>(() => getPersisted<string | null>('connectedWallet', null));
+  const [connectedAddress, _setConnectedAddress] = useState<string | null>(() => getPersisted<string | null>('connectedAddress', null));
 
   // Shared requests ledger
-  const [withdrawRequests, setWithdrawRequests] = useState<{ id: string; user: string; amount: number; status: 'Pending' | 'Approved' | 'Rejected' | 'Banned'; date: string }[]>(() => getPersisted('withdrawRequests', []));
+  const [withdrawRequests, _setWithdrawRequests] = useState<{ id: string; user: string; amount: number; status: 'Pending' | 'Approved' | 'Rejected' | 'Banned'; date: string }[]>(() => getPersisted('withdrawRequests', []));
+  void tokenSale; void _setTokenSale; void connectedWallet; void _setConnectedWallet; void connectedAddress; void _setConnectedAddress; void withdrawRequests; void _setWithdrawRequests;
 
 
   // Route and Auth parameters
@@ -350,6 +351,7 @@ export default function App() {
             setHasUnlockedWithdrawal={setHasUnlockedWithdrawal} 
             referralsCount={referralsCount}
             setReferralsCount={setReferralsCount}
+            telegramUser={telegramUser}
           />
         );
       case 'wallet':
@@ -361,18 +363,8 @@ export default function App() {
             setEforceTokens={setEforceTokens}
             usdtBalance={usdtBalance} 
             setUsdtBalance={setUsdtBalance} 
-            swapOpen={swapOpen}
-            swapRate={swapRate}
-            tokenSale={tokenSale}
-            setTokenSale={setTokenSale}
-            connectedWallet={connectedWallet}
-            setConnectedWallet={setConnectedWallet}
-            connectedAddress={connectedAddress}
-            setConnectedAddress={setConnectedAddress}
-            withdrawRequests={withdrawRequests}
-            setWithdrawRequests={setWithdrawRequests}
-            showToast={showToast} 
-            hasUnlockedWithdrawal={hasUnlockedWithdrawal} 
+            showToast={showToast}
+            telegramUser={telegramUser}
           />
         );
       case 'profile':
