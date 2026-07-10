@@ -308,7 +308,7 @@ export const Home: React.FC<HomeProps> = ({
           onClick={handleCoinClick}
           animate={isSpinning ? { scale: 0.93, rotateY: 15 } : { scale: 1, rotateY: 0 }}
           transition={{ duration: 0.15 }}
-          className="relative w-44 h-44 rounded-full cursor-pointer select-none"
+          className="relative w-64 h-64 rounded-full cursor-pointer select-none"
           style={{ perspective: 800 }}
         >
           <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#FF8A00]/30 to-[#FF5500]/20 blur-2xl animate-pulse" />
@@ -321,7 +321,7 @@ export const Home: React.FC<HomeProps> = ({
             {clicks.map((click) => (
               <motion.div
                 key={click.id}
-                initial={{ opacity: 1, y: 0, x: click.x - 88 }}
+                initial={{ opacity: 1, y: 0, x: click.x - 128 }}
                 animate={{ opacity: 0, y: -60 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.9 }}
