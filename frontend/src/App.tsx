@@ -54,9 +54,10 @@ export default function App() {
   const [energy, setEnergy] = useState<number>(() => getPersisted('energy', 1000));
   const [maxEnergy] = useState<number>(1000);
   
-  // Admin-controlled settings
-  const [swapOpen, setSwapOpen] = useState<boolean>(() => getPersisted('swapOpen', false));
-  const [swapRate, setSwapRate] = useState<number>(() => getPersisted('swapRate', 1000));
+  // Admin-controlled settings (managed by Admin panel via Firestore)
+  const [swapOpen, _setSwapOpen] = useState<boolean>(() => getPersisted('swapOpen', false));
+  const [swapRate, _setSwapRate] = useState<number>(() => getPersisted('swapRate', 1000));
+  void swapOpen; void _setSwapOpen; void _setSwapRate;
   const [tokenSale, setTokenSale] = useState(() => getPersisted('tokenSale', {
     active: false,
     price: 0.05,
@@ -265,16 +266,13 @@ export default function App() {
     localStorage.setItem('bypassTelegramCheck', JSON.stringify(bypassTelegramCheck));
   }, [bypassTelegramCheck]);
 
-  // Energy & Presence Loops
+  // Energy regeneration loop
   useEffect(() => {
     const interval = setInterval(() => {
-      // Energy regeneration (+3/sec)
       setEnergy(prev => {
         if (prev >= maxEnergy) return maxEnergy;
         return Math.min(prev + 3, maxEnergy);
       });
-      // Fluctuate active user presence counts (+/- 3 users)
-      setLiveUserCount(prev => prev + (Math.random() > 0.5 ? 2 : -2));
     }, 1000);
     return () => clearInterval(interval);
   }, [maxEnergy]);
@@ -339,7 +337,8 @@ export default function App() {
           <Tasks 
             efcBalance={efcBalance}
             setEfcBalance={setEfcBalance} 
-            showToast={showToast} 
+            showToast={showToast}
+            telegramUser={telegramUser}
           />
         );
       case 'referral':
@@ -451,14 +450,6 @@ export default function App() {
           </div>
           <div className="flex-1 overflow-y-auto px-5 pb-10">
             <Admin 
-              swapOpen={swapOpen}
-              setSwapOpen={setSwapOpen}
-              swapRate={swapRate}
-              setSwapRate={setSwapRate}
-              tokenSale={tokenSale}
-              setTokenSale={setTokenSale}
-              withdrawRequests={withdrawRequests}
-              setWithdrawRequests={setWithdrawRequests}
               showToast={showToast} 
               liveUserCount={liveUserCount}
             />

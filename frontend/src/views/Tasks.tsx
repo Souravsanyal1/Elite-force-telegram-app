@@ -1,232 +1,256 @@
-import { useState, useEffect, ComponentType } from 'react';
-import { AnimatePresence } from 'framer-motion';
-import { Check, Loader2, Sparkles, Send, Twitter, ShieldAlert, Globe, Compass } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Check, Loader2, Send, Twitter, Globe, Compass, Play, Megaphone, Star, Lock, ExternalLink } from 'lucide-react';
 import confetti from 'canvas-confetti';
-
-interface Task {
-  id: string;
-  title: string;
-  reward: number;
-  icon: ComponentType<{ className?: string; size?: number }>;
-  status: 'idle' | 'verifying' | 'completed';
-  actionLabel: string;
-}
+import { subscribeToTasks, subscribeToUserTasks, claimTaskReward, type EForceTask, type TaskType } from '../lib/taskService';
+import type { TelegramUser } from '../lib/telegramUser';
 
 interface TasksProps {
   efcBalance: number;
   setEfcBalance: (val: number | ((prev: number) => number)) => void;
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
+  telegramUser: TelegramUser | null;
 }
 
-export const Tasks = ({ setEfcBalance, showToast }: TasksProps) => {
-  const [tasks, setTasks] = useState<Task[]>([
-    { id: '1', title: 'Join Telegram Channel', reward: 500, icon: Send, status: 'idle', actionLabel: 'Join' },
-    { id: '2', title: 'Join Official Discussion Group', reward: 500, icon: Send, status: 'idle', actionLabel: 'Join' },
-    { id: '3', title: 'Follow Elite Force on X', reward: 800, icon: Twitter, status: 'idle', actionLabel: 'Follow' },
-    { id: '4', title: 'Register on Partner Site', reward: 1500, icon: Globe, status: 'idle', actionLabel: 'Visit' },
-    { id: '5', title: 'Claim Premium Telegram Bonus', reward: 2000, icon: Sparkles, status: 'idle', actionLabel: 'Claim' },
-    { id: '6', title: 'Daily Wheel Spin', reward: 300, icon: Compass, status: 'idle', actionLabel: 'Spin' },
-  ]);
+const taskTypeIcon = (type: TaskType) => {
+  switch (type) {
+    case 'channel': return <Send size={14} />;
+    case 'group':   return <Send size={14} />;
+    case 'x':       return <Twitter size={14} />;
+    case 'website': return <Globe size={14} />;
+    case 'video':   return <Play size={14} />;
+    case 'daily':   return <Compass size={14} />;
+    case 'ad':      return <Megaphone size={14} />;
+    default:        return <Star size={14} />;
+  }
+};
 
-  const handleTaskClick = (taskId: string) => {
-    const targetTask = tasks.find(t => t.id === taskId);
-    if (!targetTask || targetTask.status !== 'idle') return;
+const taskTypeLabel = (type: TaskType) => {
+  switch (type) {
+    case 'channel': return 'Telegram Channel';
+    case 'group':   return 'Telegram Group';
+    case 'x':       return 'Follow on X';
+    case 'website': return 'Visit Website';
+    case 'video':   return 'Watch Video';
+    case 'daily':   return 'Daily Mission';
+    case 'ad':      return 'Reward Ad';
+    default:        return 'Task';
+  }
+};
 
-    // Set status to verifying
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'verifying' } : t));
+const taskTypeColor = (type: TaskType) => {
+  switch (type) {
+    case 'channel': return 'text-accent-cyan bg-accent-cyan/10 border-accent-cyan/20';
+    case 'group':   return 'text-accent-cyan bg-accent-cyan/10 border-accent-cyan/20';
+    case 'x':       return 'text-slate-300 bg-white/5 border-white/10';
+    case 'website': return 'text-accent-blue bg-accent-blue/10 border-accent-blue/20';
+    case 'video':   return 'text-accent-purple bg-accent-purple/10 border-accent-purple/20';
+    case 'daily':   return 'text-[#FF8A00] bg-[#FF8A00]/10 border-[#FF8A00]/20';
+    case 'ad':      return 'text-accent-success bg-accent-success/10 border-accent-success/20';
+    default:        return 'text-slate-400 bg-white/5 border-white/10';
+  }
+};
 
-    // Simulate verification check (2 seconds)
-    setTimeout(() => {
-      setTasks(prev => prev.map(t => {
-        if (t.id === taskId) {
-          setEfcBalance(bal => bal + t.reward);
-          showToast(`Verified! Reward claimed: +${t.reward} EForce`, 'success');
-          return { ...t, status: 'completed' };
-        }
-        return t;
-      }));
-    }, 2000);
+type TaskStatus = 'idle' | 'verifying' | 'completed';
+
+export const Tasks = ({ setEfcBalance, showToast, telegramUser }: TasksProps) => {
+  const [tasks, setTasks] = useState<EForceTask[]>([]);
+  const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(new Set());
+  const [taskStatus, setTaskStatus] = useState<Record<string, TaskStatus>>({});
+  const [loadingTasks, setLoadingTasks] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<'all' | TaskType>('all');
+
+  // Subscribe to Firestore tasks (real-time)
+  useEffect(() => {
+    setLoadingTasks(true);
+    const unsub = subscribeToTasks((t) => {
+      setTasks(t);
+      setLoadingTasks(false);
+    });
+    return unsub;
+  }, []);
+
+  // Subscribe to user's completed tasks (real-time)
+  useEffect(() => {
+    if (!telegramUser) return;
+    const unsub = subscribeToUserTasks(telegramUser.id, (ids) => {
+      setCompletedTaskIds(ids);
+    });
+    return unsub;
+  }, [telegramUser]);
+
+  const handleTaskClick = async (task: EForceTask) => {
+    if (!telegramUser) {
+      showToast('Please open in Telegram to complete tasks.', 'warning');
+      return;
+    }
+    const currentStatus = taskStatus[task.id] || 'idle';
+    if (currentStatus !== 'idle' || completedTaskIds.has(task.id)) return;
+
+    // Open external URL if available
+    if (task.url) {
+      window.open(task.url, '_blank');
+    }
+
+    setTaskStatus(prev => ({ ...prev, [task.id]: 'verifying' }));
+
+    // Verification delay (simulates checking join/follow)
+    await new Promise(res => setTimeout(res, 2500));
+
+    const result = await claimTaskReward(telegramUser.id, task);
+
+    if (result.success) {
+      setTaskStatus(prev => ({ ...prev, [task.id]: 'completed' }));
+      setEfcBalance(bal => bal + task.reward);
+      showToast(`✅ Verified! +${task.reward.toLocaleString()} EForce earned!`, 'success');
+      confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 }, colors: ['#FF8A00', '#00E5FF', '#B388FF'] });
+    } else {
+      setTaskStatus(prev => ({ ...prev, [task.id]: 'idle' }));
+      showToast(result.reason || 'Verification failed. Try again.', 'error');
+    }
   };
+
+  const isCompleted = (task: EForceTask) =>
+    completedTaskIds.has(task.id) || taskStatus[task.id] === 'completed';
+
+  const isExpired = (task: EForceTask) =>
+    !!(task.expiryDate && new Date(task.expiryDate) < new Date());
+
+  const isLimitReached = (task: EForceTask) =>
+    task.totalCompletionLimit > 0 && task.completedCount >= task.totalCompletionLimit;
+
+  const enabledTasks = tasks.filter(t => t.isEnabled);
+  const taskTypes: Array<'all' | TaskType> = ['all', 'daily', 'channel', 'group', 'x', 'website', 'video', 'ad'];
+
+  const filteredTasks = activeFilter === 'all'
+    ? enabledTasks
+    : enabledTasks.filter(t => t.type === activeFilter);
+
+  const completedCount = enabledTasks.filter(t => isCompleted(t)).length;
+  const totalRewards = enabledTasks
+    .filter(t => isCompleted(t))
+    .reduce((sum, t) => sum + t.reward, 0);
 
   return (
     <div className="flex flex-col gap-5 pb-28">
-      {/* View Header */}
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-white">Missions</h1>
-        <p className="text-xs text-slate-400 mt-1">Complete tasks to verify eligibility & earn bonus EForce.</p>
+        <p className="text-xs text-slate-400 mt-1">Complete tasks to earn EForce rewards</p>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="glass-panel p-4 rounded-[20px] border-white/5">
-          <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block mb-0.5">Tasks Completed</span>
-          <span className="text-lg font-bold text-white">
-            {tasks.filter(t => t.status === 'completed').length} <span className="text-xs text-slate-500 font-normal">/ {tasks.length}</span>
-          </span>
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="glass-panel p-3.5 rounded-[18px] border-white/5 flex flex-col gap-1">
+          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Completed</span>
+          <span className="text-lg font-black text-accent-success">{completedCount}/{enabledTasks.length}</span>
         </div>
-        <div className="glass-panel p-4 rounded-[20px] border-white/5">
-          <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block mb-0.5">Total Claimable</span>
-          <span className="text-lg font-bold text-accent-cyan">
-            {tasks.filter(t => t.status === 'idle').reduce((acc, t) => acc + t.reward, 0).toLocaleString()} <span className="text-xs font-normal text-slate-500">EForce</span>
-          </span>
+        <div className="glass-panel p-3.5 rounded-[18px] border-white/5 flex flex-col gap-1">
+          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Earned Today</span>
+          <span className="text-lg font-black text-[#FF8A00]">{totalRewards.toLocaleString()} EF</span>
         </div>
       </div>
 
-      {/* Task List container */}
-      <div className="flex flex-col gap-3">
-        <h3 className="text-xs font-bold text-accent-cyan tracking-wider uppercase mb-1">Missions Guild</h3>
+      {/* Filter Pills */}
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        {taskTypes.map(type => (
+          <button
+            key={type}
+            onClick={() => setActiveFilter(type)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer ${
+              activeFilter === type
+                ? 'bg-[#FF8A00] border-[#FF8A00] text-white'
+                : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+            }`}
+          >
+            {type === 'all' ? 'All' : taskTypeLabel(type as TaskType)}
+          </button>
+        ))}
+      </div>
 
-        <div className="flex flex-col gap-2.5">
-          {tasks.map((task) => {
-            const Icon = task.icon;
+      {/* Task List */}
+      {loadingTasks ? (
+        <div className="flex flex-col items-center gap-3 py-12">
+          <Loader2 size={24} className="text-accent-cyan animate-spin" />
+          <span className="text-xs text-slate-500">Loading missions...</span>
+        </div>
+      ) : filteredTasks.length === 0 ? (
+        <div className="text-center py-12 text-slate-500 text-sm">
+          No missions in this category yet.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <AnimatePresence>
+            {filteredTasks.map((task, i) => {
+              const status = taskStatus[task.id] || 'idle';
+              const done = isCompleted(task);
+              const expired = isExpired(task);
+              const limitHit = isLimitReached(task);
+              const disabled = done || expired || limitHit || status === 'verifying';
 
-            return (
-              <div 
-                key={task.id}
-                className={`glass-panel p-4 rounded-[20px] border-white/6 flex items-center justify-between transition-all duration-300 ${
-                  task.status === 'completed' ? 'border-accent-success/20 bg-accent-success/[0.01]' : ''
-                }`}
-              >
-                {/* Left Side: Icon & Details */}
-                <div className="flex items-center gap-3.5">
-                  <div className={`p-2.5 rounded-xl border flex items-center justify-center ${
-                    task.status === 'completed' 
-                      ? 'bg-accent-success/10 border-accent-success/20 text-accent-success' 
-                      : 'bg-white/5 border-white/8 text-slate-300'
-                  }`}>
-                    <Icon size={18} />
+              return (
+                <motion.div
+                  key={task.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                  className={`glass-panel p-4 rounded-[20px] border-white/6 flex items-center gap-3.5 transition-all ${
+                    done ? 'opacity-60' : expired || limitHit ? 'opacity-40' : ''
+                  }`}
+                >
+                  {/* Icon */}
+                  <div className={`w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0 border ${taskTypeColor(task.type)}`}>
+                    {taskTypeIcon(task.type)}
                   </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-white tracking-wide">{task.title}</h4>
-                    <span className="text-[11px] font-bold text-accent-purple mt-0.5 block">
-                      +{task.reward} EForce
-                    </span>
-                  </div>
-                </div>
 
-                {/* Right Side: Action Button / Status */}
-                <div>
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="text-[11px] font-bold text-white truncate">{task.title}</span>
+                      {task.url && !done && (
+                        <ExternalLink size={10} className="text-slate-500 shrink-0" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[9px] font-bold uppercase tracking-wider border rounded-full px-1.5 py-0.5 ${taskTypeColor(task.type)}`}>
+                        {taskTypeLabel(task.type)}
+                      </span>
+                      <span className="text-[10px] font-black text-[#FF8A00]">+{task.reward.toLocaleString()}</span>
+                    </div>
+                    {expired && <span className="text-[9px] text-accent-danger mt-0.5 block">Expired</span>}
+                    {limitHit && !expired && <span className="text-[9px] text-slate-500 mt-0.5 block">Limit reached</span>}
+                  </div>
+
+                  {/* Action */}
                   <button
-                    onClick={() => handleTaskClick(task.id)}
-                    disabled={task.status !== 'idle'}
-                    className={`h-9 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-300 ${
-                      task.status === 'idle'
-                        ? 'glass-btn hover:text-accent-cyan hover:border-accent-cyan/30'
-                        : task.status === 'verifying'
-                          ? 'bg-accent-cyan/10 border border-accent-cyan/20 text-accent-cyan font-medium cursor-not-allowed'
-                          : 'bg-accent-success/10 border border-accent-success/20 text-accent-success font-medium cursor-default'
-                    }`}
+                    onClick={() => handleTaskClick(task)}
+                    disabled={disabled}
+                    className={`shrink-0 w-20 h-8 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer
+                      ${done
+                        ? 'bg-accent-success/15 text-accent-success border border-accent-success/25'
+                        : expired || limitHit
+                        ? 'bg-white/5 text-slate-500 border border-white/10 cursor-not-allowed'
+                        : status === 'verifying'
+                        ? 'bg-white/5 text-slate-400 border border-white/10 cursor-wait'
+                        : 'bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white shadow-[0_0_12px_rgba(255,138,0,0.2)]'
+                      }`}
                   >
-                    {task.status === 'idle' && (
-                      <span>{task.actionLabel}</span>
-                    )}
-
-                    {task.status === 'verifying' && (
-                      <>
-                        <Loader2 size={12} className="animate-spin" />
-                        <span>Verifying</span>
-                      </>
-                    )}
-
-                    {task.status === 'completed' && (
-                      <>
-                        <Check size={12} className="stroke-[3]" />
-                        <span>Done</span>
-                      </>
+                    {done ? (
+                      <><Check size={12} /> Done</>
+                    ) : status === 'verifying' ? (
+                      <><Loader2 size={12} className="animate-spin" /> Check</>
+                    ) : expired || limitHit ? (
+                      <><Lock size={11} /> Closed</>
+                    ) : (
+                      'Go'
                     )}
                   </button>
-                </div>
-              </div>
-            );
-          })}
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
         </div>
-      </div>
-
-      {/* 7. Rewarded Ads System */}
-      <RewardedAds setEfcBalance={setEfcBalance} showToast={showToast} />
-
-      {/* Verification Policy Disclaimer */}
-      <div className="glass-panel p-4 rounded-[20px] border-white/5 flex items-start gap-3 bg-accent-warning/[0.01]">
-        <ShieldAlert size={16} className="text-accent-warning shrink-0 mt-0.5" />
-        <div className="flex flex-col gap-0.5">
-          <h5 className="text-xs font-bold text-slate-300">Fraud Prevention System</h5>
-          <p className="text-[10px] text-slate-400 leading-normal">
-            Our automated security node cross-checks channels. If you leave a group or undo social follows after claiming, EForce credits will be rolled back automatically.
-          </p>
-        </div>
-      </div>
-
-    </div>
-  );
-};
-
-interface RewardedAdsProps {
-  setEfcBalance: (val: number | ((prev: number) => number)) => void;
-  showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
-}
-
-const RewardedAds: React.FC<RewardedAdsProps> = ({ setEfcBalance, showToast }) => {
-  const [adWatching, setAdWatching] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(3);
-
-  const startAd = () => {
-    setAdWatching(true);
-    setTimeLeft(3);
-    showToast("Launching sponsored video stream...", "info");
-  };
-
-  useEffect(() => {
-    if (!adWatching) return;
-    if (timeLeft <= 0) {
-      setAdWatching(false);
-      setEfcBalance(prev => prev + 500);
-      showToast("Ad completed! Earned +500 EForce Points!", "success");
-      
-      confetti({
-        particleCount: 40,
-        spread: 50,
-        colors: ['#00E5FF', '#FFD700']
-      });
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setTimeLeft(prev => prev - 1);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [adWatching, timeLeft, setEfcBalance]);
-
-  return (
-    <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-3.5 relative overflow-hidden">
-      <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Rewarded Nodes</span>
-      
-      <div className="flex justify-between items-center">
-        <div className="flex flex-col gap-0.5">
-          <h4 className="text-xs font-bold text-white">Watch Sponsored Ad Broadcast</h4>
-          <span className="text-[10px] text-accent-purple font-semibold">+500 EForce Points</span>
-        </div>
-
-        <button
-          onClick={startAd}
-          disabled={adWatching}
-          className="h-9 px-4 rounded-xl bg-gradient-to-r from-accent-purple to-accent-blue text-white text-xs font-bold shadow hover:shadow-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Watch ad
-        </button>
-      </div>
-
-      {/* Ad Watch Simulator Modal Overlay */}
-      <AnimatePresence>
-        {adWatching && (
-          <div className="absolute inset-0 z-50 bg-[#050816] flex flex-col items-center justify-center text-center p-4">
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-black block mb-2">Streaming Broadcast</span>
-            <div className="w-16 h-16 rounded-full border-4 border-t-accent-cyan border-white/10 animate-spin flex items-center justify-center mb-4">
-              <span className="text-xs font-black text-white">{timeLeft}s</span>
-            </div>
-            <p className="text-xs text-slate-300 font-bold">Verify node network connection to award credits...</p>
-          </div>
-        )}
-      </AnimatePresence>
+      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-// Firestore User Service
+// Firestore User Service — Elite Force (EForce)
 // Handles creating, reading, and updating user documents
 
 import {
@@ -15,6 +15,7 @@ import {
   getDocs,
   orderBy,
   limit,
+  Timestamp,
 } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebase';
 import type { TelegramUser } from './telegramUser';
@@ -26,13 +27,40 @@ export interface FirestoreUser {
   lastName: string;
   photoUrl: string;
   isTelegramPremium: boolean;
-  points: number;
-  wallet: number;
-  referrals: number;
   country: string;
-  lastSeen: unknown;        // Firestore ServerTimestamp
+  joinDate: unknown;
+  lastSeen: unknown;
   isOnline: boolean;
   createdAt: unknown;
+
+  // Balances
+  points: number;
+  tokens: number;        // EST token balance
+  wallet: number;        // USDT balance
+  walletAddress: string; // BEP-20 address
+
+  // Referrals
+  referrals: number;
+  referralCount: number; // valid only
+  referredBy: number | null;
+
+  // Daily Check-in
+  dailyClaimStreak: number;
+  lastClaimDate: string | null; // ISO date "YYYY-MM-DD"
+
+  // Auto Miner
+  autoMinerLastUsed: unknown | null;
+  autoMinerActive: boolean;
+
+  // Security / Anti-fraud
+  flagCount: number;
+  banStatus: 'none' | 'temp' | 'permanent';
+  banUntil: unknown | null;
+  riskLevel: 'safe' | 'medium' | 'high';
+  deviceFingerprint: string;
+  ipHistory: string[];
+
+  // Device
   device: {
     platform: string;
     browser: string;
@@ -41,7 +69,7 @@ export interface FirestoreUser {
     language: string;
     timezone: string;
   };
-  riskLevel: 'safe' | 'medium' | 'high';
+
   totalDailyPoints: number;
 }
 
@@ -49,12 +77,12 @@ const USERS_COLLECTION = 'users';
 
 /**
  * Creates or updates a user document in Firestore on app load.
- * Uses the Telegram user ID as the document ID.
  */
 export const upsertUser = async (
   telegramUser: TelegramUser,
   deviceInfo: { platform: string; browser: string; os: string; resolution: string; language: string; timezone: string },
-  localPoints: number
+  _localPoints: number,
+  deviceFingerprint = ''
 ): Promise<void> => {
   if (!isFirebaseConfigured()) return;
 
@@ -62,7 +90,6 @@ export const upsertUser = async (
   const snap = await getDoc(userRef);
 
   if (!snap.exists()) {
-    // New user — create document
     await setDoc(userRef, {
       telegramId: telegramUser.id,
       username: telegramUser.username || '',
@@ -70,19 +97,32 @@ export const upsertUser = async (
       lastName: telegramUser.lastName || '',
       photoUrl: telegramUser.photoUrl || '',
       isTelegramPremium: telegramUser.isPremium,
-      points: localPoints,
-      wallet: 0,
-      referrals: 0,
       country: 'Unknown',
+      joinDate: serverTimestamp(),
       isOnline: true,
       createdAt: serverTimestamp(),
       lastSeen: serverTimestamp(),
-      device: deviceInfo,
+      points: 0,
+      tokens: 0,
+      wallet: 0,
+      walletAddress: '',
+      referrals: 0,
+      referralCount: 0,
+      referredBy: null,
+      dailyClaimStreak: 0,
+      lastClaimDate: null,
+      autoMinerLastUsed: null,
+      autoMinerActive: false,
+      flagCount: 0,
+      banStatus: 'none',
+      banUntil: null,
       riskLevel: 'safe',
+      deviceFingerprint,
+      ipHistory: [],
+      device: deviceInfo,
       totalDailyPoints: 0,
-    } satisfies Partial<FirestoreUser>);
+    });
   } else {
-    // Existing user — update presence and profile
     await updateDoc(userRef, {
       firstName: telegramUser.firstName || '',
       lastName: telegramUser.lastName || '',
@@ -91,38 +131,35 @@ export const upsertUser = async (
       isOnline: true,
       lastSeen: serverTimestamp(),
       device: deviceInfo,
+      ...(deviceFingerprint ? { deviceFingerprint } : {}),
     });
   }
 };
 
 /**
- * Sets the user offline (call on window beforeunload).
+ * Sets the user offline on window close.
  */
 export const setUserOffline = async (telegramId: number): Promise<void> => {
   if (!isFirebaseConfigured()) return;
   const userRef = doc(db, USERS_COLLECTION, String(telegramId));
   try {
-    await updateDoc(userRef, {
-      isOnline: false,
-      lastSeen: serverTimestamp(),
-    });
-  } catch { /* ignore — may fail if connection drops */ }
+    await updateDoc(userRef, { isOnline: false, lastSeen: serverTimestamp() });
+  } catch { /* ignore */ }
 };
 
 /**
- * Syncs local points balance to Firestore.
- * Called after tap events and reward claims.
+ * Syncs local points to Firestore.
  */
 export const syncPointsToFirestore = async (telegramId: number, points: number): Promise<void> => {
   if (!isFirebaseConfigured()) return;
   const userRef = doc(db, USERS_COLLECTION, String(telegramId));
   try {
     await updateDoc(userRef, { points });
-  } catch { /* noop — will sync next time */ }
+  } catch { /* noop */ }
 };
 
 /**
- * Gets the real-time count of online users in Firestore.
+ * Gets the real-time count of online users.
  */
 export const getOnlineUserCount = async (): Promise<number> => {
   if (!isFirebaseConfigured()) return 0;
@@ -132,8 +169,7 @@ export const getOnlineUserCount = async (): Promise<number> => {
 };
 
 /**
- * Subscribes to real-time user document updates.
- * Returns the unsubscribe function.
+ * Subscribe to real-time user document updates.
  */
 export const subscribeToUser = (
   telegramId: number,
@@ -147,7 +183,7 @@ export const subscribeToUser = (
 };
 
 /**
- * Updates the risk level of a user (called by anti-cheat system).
+ * Updates the risk level of a user.
  */
 export const updateRiskLevel = async (
   telegramId: number,
@@ -161,7 +197,85 @@ export const updateRiskLevel = async (
 };
 
 /**
- * Admin: Fetches all registered users from Firestore.
+ * Flag a user (increment flag count, apply ban if needed).
+ */
+export const flagUser = async (telegramId: number, reason: string): Promise<void> => {
+  if (!isFirebaseConfigured()) return;
+  const userRef = doc(db, USERS_COLLECTION, String(telegramId));
+  try {
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) return;
+    const user = snap.data() as FirestoreUser;
+    const newFlagCount = (user.flagCount || 0) + 1;
+
+    const now = new Date();
+    let banStatus: 'none' | 'temp' | 'permanent' = 'none';
+    let banUntil = null;
+
+    if (newFlagCount === 1) {
+      banStatus = 'temp';
+      const until = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      banUntil = Timestamp.fromDate(until);
+    } else if (newFlagCount === 2) {
+      banStatus = 'temp';
+      const until = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+      banUntil = Timestamp.fromDate(until);
+    } else {
+      banStatus = 'permanent';
+    }
+
+    await updateDoc(userRef, { flagCount: newFlagCount, banStatus, banUntil, riskLevel: 'high' });
+
+    // Write security event
+    await setDoc(doc(db, 'securityEvents', `${telegramId}_flag_${Date.now()}`), {
+      telegramId,
+      type: 'flag',
+      reason,
+      severity: newFlagCount >= 3 ? 'critical' : 'high',
+      banStatus,
+      createdAt: serverTimestamp(),
+    });
+  } catch { /* noop */ }
+};
+
+/**
+ * Admin: Manually ban or unban a user.
+ */
+export const adminSetBan = async (
+  telegramId: number,
+  banStatus: 'none' | 'temp' | 'permanent',
+  durationHours?: number
+): Promise<boolean> => {
+  if (!isFirebaseConfigured()) return false;
+  const userRef = doc(db, USERS_COLLECTION, String(telegramId));
+  try {
+    let banUntil = null;
+    if (banStatus === 'temp' && durationHours) {
+      banUntil = Timestamp.fromDate(new Date(Date.now() + durationHours * 3600 * 1000));
+    }
+    await updateDoc(userRef, { banStatus, banUntil });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Check if a user is currently banned.
+ */
+export const checkUserBan = (user: FirestoreUser): { banned: boolean; until?: Date; permanent?: boolean } => {
+  if (user.banStatus === 'permanent') return { banned: true, permanent: true };
+  if (user.banStatus === 'temp' && user.banUntil) {
+    const until = user.banUntil instanceof Timestamp
+      ? user.banUntil.toDate()
+      : new Date(user.banUntil as string);
+    if (until > new Date()) return { banned: true, until };
+  }
+  return { banned: false };
+};
+
+/**
+ * Admin: Fetches all registered users from Firestore (sorted by points).
  */
 export const getAllUsers = async (): Promise<FirestoreUser[]> => {
   if (!isFirebaseConfigured()) return [];
@@ -170,9 +284,7 @@ export const getAllUsers = async (): Promise<FirestoreUser[]> => {
       query(collection(db, USERS_COLLECTION), orderBy('points', 'desc'))
     );
     const users: FirestoreUser[] = [];
-    querySnapshot.forEach((docSnap) => {
-      users.push(docSnap.data() as FirestoreUser);
-    });
+    querySnapshot.forEach((docSnap) => users.push(docSnap.data() as FirestoreUser));
     return users;
   } catch {
     return [];
@@ -180,7 +292,7 @@ export const getAllUsers = async (): Promise<FirestoreUser[]> => {
 };
 
 /**
- * Gets total count of registered users in Firestore.
+ * Gets total count of registered users.
  */
 export const getTotalUserCount = async (): Promise<number> => {
   if (!isFirebaseConfigured()) return 0;
@@ -193,11 +305,98 @@ export const getTotalUserCount = async (): Promise<number> => {
 };
 
 /**
+ * Gets count of today's new users.
+ */
+export const getTodayNewUsersCount = async (): Promise<number> => {
+  if (!isFirebaseConfigured()) return 0;
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const q = query(
+      collection(db, USERS_COLLECTION),
+      where('createdAt', '>=', Timestamp.fromDate(today))
+    );
+    const snap = await getCountFromServer(q);
+    return snap.data().count;
+  } catch {
+    return 0;
+  }
+};
+
+/**
+ * Gets count of flagged users.
+ */
+export const getFlaggedUsersCount = async (): Promise<number> => {
+  if (!isFirebaseConfigured()) return 0;
+  try {
+    const q = query(collection(db, USERS_COLLECTION), where('flagCount', '>', 0));
+    const snap = await getCountFromServer(q);
+    return snap.data().count;
+  } catch {
+    return 0;
+  }
+};
+
+/**
+ * Gets count of banned users.
+ */
+export const getBannedUsersCount = async (): Promise<number> => {
+  if (!isFirebaseConfigured()) return 0;
+  try {
+    const q = query(
+      collection(db, USERS_COLLECTION),
+      where('banStatus', 'in', ['temp', 'permanent'])
+    );
+    const snap = await getCountFromServer(q);
+    return snap.data().count;
+  } catch {
+    return 0;
+  }
+};
+
+/**
+ * Gets count of premium users.
+ */
+export const getPremiumUsersCount = async (): Promise<number> => {
+  if (!isFirebaseConfigured()) return 0;
+  try {
+    const q = query(collection(db, USERS_COLLECTION), where('isTelegramPremium', '==', true));
+    const snap = await getCountFromServer(q);
+    return snap.data().count;
+  } catch {
+    return 0;
+  }
+};
+
+/**
+ * Gets count of active auto miner users.
+ */
+export const getAutoMinerUsersCount = async (): Promise<number> => {
+  if (!isFirebaseConfigured()) return 0;
+  try {
+    const q = query(collection(db, USERS_COLLECTION), where('autoMinerActive', '==', true));
+    const snap = await getCountFromServer(q);
+    return snap.data().count;
+  } catch {
+    return 0;
+  }
+};
+
+/**
  * Admin: Directly updates any user's fields in Firestore.
  */
 export const updateUserDatabaseValues = async (
   telegramId: number,
-  updates: { points?: number; wallet?: number; referrals?: number; riskLevel?: 'safe' | 'medium' | 'high' }
+  updates: {
+    points?: number;
+    tokens?: number;
+    wallet?: number;
+    referrals?: number;
+    riskLevel?: 'safe' | 'medium' | 'high';
+    flagCount?: number;
+    banStatus?: 'none' | 'temp' | 'permanent';
+    walletAddress?: string;
+  }
 ): Promise<boolean> => {
   if (!isFirebaseConfigured()) return false;
   const userRef = doc(db, USERS_COLLECTION, String(telegramId));
@@ -207,6 +406,117 @@ export const updateUserDatabaseValues = async (
   } catch {
     return false;
   }
+};
+
+/**
+ * Updates wallet address (BEP-20 only).
+ */
+export const updateWalletAddress = async (telegramId: number, address: string): Promise<boolean> => {
+  if (!isFirebaseConfigured()) return false;
+  const userRef = doc(db, USERS_COLLECTION, String(telegramId));
+  try {
+    await updateDoc(userRef, { walletAddress: address });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Records a daily check-in and returns the reward.
+ */
+export const recordDailyCheckin = async (
+  telegramId: number,
+  claimRewards: number[]
+): Promise<{ success: boolean; reward: number; newStreak: number; reason?: string }> => {
+  if (!isFirebaseConfigured()) {
+    return { success: true, reward: 100, newStreak: 1 };
+  }
+  const userRef = doc(db, USERS_COLLECTION, String(telegramId));
+  try {
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) return { success: false, reward: 0, newStreak: 0, reason: 'User not found.' };
+    const user = snap.data() as FirestoreUser;
+
+    const today = new Date().toISOString().slice(0, 10);
+    if (user.lastClaimDate === today) {
+      return { success: false, reward: 0, newStreak: user.dailyClaimStreak, reason: 'Already claimed today.' };
+    }
+
+    // Check streak continuity
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const newStreak = user.lastClaimDate === yesterday
+      ? (user.dailyClaimStreak || 0) + 1
+      : 1;
+
+    const rewardIndex = (newStreak - 1) % claimRewards.length;
+    const reward = claimRewards[rewardIndex] || 100;
+    const newPoints = (user.points || 0) + reward;
+
+    await updateDoc(userRef, {
+      dailyClaimStreak: newStreak,
+      lastClaimDate: today,
+      points: newPoints,
+    });
+
+    return { success: true, reward, newStreak };
+  } catch {
+    return { success: false, reward: 0, newStreak: 0, reason: 'Network error.' };
+  }
+};
+
+/**
+ * Records auto miner session start.
+ */
+export const startAutoMinerSession = async (
+  telegramId: number,
+  cooldownSeconds: number
+): Promise<{ success: boolean; reason?: string }> => {
+  if (!isFirebaseConfigured()) return { success: true };
+  const userRef = doc(db, USERS_COLLECTION, String(telegramId));
+  try {
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) return { success: false, reason: 'User not found.' };
+    const user = snap.data() as FirestoreUser;
+
+    if (user.autoMinerLastUsed) {
+      const lastUsed = user.autoMinerLastUsed instanceof Timestamp
+        ? user.autoMinerLastUsed.toDate()
+        : new Date(user.autoMinerLastUsed as string);
+      const elapsed = (Date.now() - lastUsed.getTime()) / 1000;
+      if (elapsed < cooldownSeconds) {
+        const remaining = Math.ceil(cooldownSeconds - elapsed);
+        const hrs = Math.floor(remaining / 3600);
+        const mins = Math.floor((remaining % 3600) / 60);
+        return { success: false, reason: `Cooldown: ${hrs}h ${mins}m remaining.` };
+      }
+    }
+
+    await updateDoc(userRef, { autoMinerActive: true, autoMinerLastUsed: serverTimestamp() });
+    return { success: true };
+  } catch {
+    return { success: false, reason: 'Network error.' };
+  }
+};
+
+/**
+ * Records auto miner session end and credits reward.
+ */
+export const endAutoMinerSession = async (
+  telegramId: number,
+  reward: number
+): Promise<void> => {
+  if (!isFirebaseConfigured()) return;
+  const userRef = doc(db, USERS_COLLECTION, String(telegramId));
+  try {
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) return;
+    const user = snap.data() as FirestoreUser;
+    await updateDoc(userRef, {
+      autoMinerActive: false,
+      points: (user.points || 0) + reward,
+    });
+  } catch { /* noop */ }
 };
 
 /**
@@ -222,13 +532,85 @@ export const getLeaderboardUsers = async (limitCount = 10): Promise<FirestoreUse
     );
     const querySnapshot = await getDocs(q);
     const users: FirestoreUser[] = [];
-    querySnapshot.forEach((docSnap) => {
-      users.push(docSnap.data() as FirestoreUser);
-    });
+    querySnapshot.forEach((docSnap) => users.push(docSnap.data() as FirestoreUser));
     return users;
   } catch {
     return [];
   }
 };
 
+/**
+ * Withdraw requests management.
+ */
+export const submitWithdrawRequest = async (
+  telegramId: number,
+  username: string,
+  walletAddress: string,
+  amount: number,
+  type: 'usdt' | 'token' = 'usdt'
+): Promise<{ success: boolean; reason?: string }> => {
+  if (!isFirebaseConfigured()) return { success: true };
+  try {
+    const reqId = `${telegramId}_${Date.now()}`;
+    await setDoc(doc(db, 'withdrawRequests', reqId), {
+      telegramId,
+      username,
+      walletAddress,
+      amount,
+      type,
+      status: 'Pending',
+      createdAt: serverTimestamp(),
+      processedAt: null,
+      adminNote: '',
+    });
+    return { success: true };
+  } catch {
+    return { success: false, reason: 'Failed to submit request.' };
+  }
+};
 
+export const getAllWithdrawRequests = async (): Promise<any[]> => {
+  if (!isFirebaseConfigured()) return [];
+  try {
+    const q = query(
+      collection(db, 'withdrawRequests'),
+      orderBy('createdAt', 'desc')
+    );
+    const snap = await getDocs(q);
+    const reqs: any[] = [];
+    snap.forEach((d) => reqs.push({ id: d.id, ...d.data() }));
+    return reqs;
+  } catch {
+    return [];
+  }
+};
+
+export const updateWithdrawRequest = async (
+  reqId: string,
+  status: 'Approved' | 'Rejected' | 'Banned',
+  adminNote = ''
+): Promise<boolean> => {
+  if (!isFirebaseConfigured()) return false;
+  try {
+    await updateDoc(doc(db, 'withdrawRequests', reqId), {
+      status,
+      adminNote,
+      processedAt: serverTimestamp(),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const subscribeToWithdrawRequests = (
+  callback: (requests: any[]) => void
+): (() => void) => {
+  if (!isFirebaseConfigured()) return () => {};
+  const q = query(collection(db, 'withdrawRequests'), orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (snap) => {
+    const reqs: any[] = [];
+    snap.forEach((d) => reqs.push({ id: d.id, ...d.data() }));
+    callback(reqs);
+  });
+};
