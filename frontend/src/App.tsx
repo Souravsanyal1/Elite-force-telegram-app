@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, CheckCircle, Info, ShieldAlert, Award, Smartphone, Lock } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, ShieldAlert, Smartphone, Lock } from 'lucide-react';
 import { ActiveTab, Navigation } from './components/Navigation';
 import { Home } from './views/Home';
 import { Tasks } from './views/Tasks';
@@ -590,15 +590,15 @@ export default function App() {
             transition={{ duration: 0.6, ease: 'easeInOut' }}
             className="fixed inset-0 z-50 bg-[#050816] flex flex-col items-center justify-center text-center p-6"
           >
-            {/* Spinning Gold Coin with Halo */}
+            {/* Spinning Custom Gold Logo with Halo */}
             <div className="relative w-28 h-28 mb-6 flex items-center justify-center">
-              <div className="absolute inset-0 rounded-full bg-accent-cyan/15 filter blur-xl animate-pulse"></div>
+              <div className="absolute inset-0 rounded-full bg-[#FF8A00]/15 filter blur-xl animate-pulse"></div>
               <motion.div
                 animate={{ rotateY: 360 }}
-                transition={{ repeat: Infinity, duration: 2.2, ease: 'linear' }}
-                className="w-20 h-20 rounded-full border-2 border-accent-cyan flex items-center justify-center shadow-[0_0_30px_rgba(0,229,255,0.25)] bg-[#0E1225]"
+                transition={{ repeat: Infinity, duration: 3.5, ease: 'linear' }}
+                className="w-24 h-24 rounded-full overflow-hidden border-2 border-[#FFD700]/30 flex items-center justify-center shadow-[0_0_30px_rgba(255,138,0,0.25)] bg-[#050816]"
               >
-                <Award size={38} className="text-accent-cyan" />
+                <img src="/loading-logo.png" alt="Loading Logo" className="w-full h-full object-contain p-1" />
               </motion.div>
             </div>
 
