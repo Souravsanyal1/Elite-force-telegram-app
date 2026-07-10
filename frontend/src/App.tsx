@@ -11,7 +11,7 @@ import { Settings } from './views/Settings';
 import { Admin } from './views/Admin';
 import { AdminLogin } from './views/AdminLogin';
 import { getTelegramWebAppData, type TelegramUser } from './lib/telegramUser';
-import { upsertUser, setUserOffline, syncPointsToFirestore, getOnlineUserCount } from './lib/userService';
+import { upsertUser, setUserOffline, syncPointsToFirestore, getOnlineUserCount, subscribeToUser } from './lib/userService';
 import { isFirebaseConfigured } from './lib/firebase';
 
 interface Toast {
@@ -90,6 +90,9 @@ export default function App() {
 
   // Ref to store telegramId for cleanup
   const telegramIdRef = useRef<number | null>(null);
+
+  // Ref to store the last synced points to prevent overwrite loop
+  const lastSyncedPointsRef = useRef<number>(-1);
 
   // Dynamic live stats for Admin Panel
   const [liveUserCount, setLiveUserCount] = useState(15842);
@@ -199,10 +202,28 @@ export default function App() {
   useEffect(() => {
     if (!telegramUser) return;
     const timeout = setTimeout(() => {
+      lastSyncedPointsRef.current = efcBalance;
       syncPointsToFirestore(telegramUser.id, efcBalance).catch(() => {});
     }, 3000); // debounce 3s
     return () => clearTimeout(timeout);
   }, [efcBalance, telegramUser]);
+
+  // Subscribe to real-time user document changes in Firestore
+  useEffect(() => {
+    if (!telegramUser) return;
+    const unsubscribe = subscribeToUser(telegramUser.id, (dbUser) => {
+      if (dbUser) {
+        // Only update local state if db points is different from last synced value
+        if (dbUser.points !== lastSyncedPointsRef.current) {
+          setEfcBalance(dbUser.points ?? 0);
+          lastSyncedPointsRef.current = dbUser.points ?? 0;
+        }
+        setUsdtBalance(dbUser.wallet ?? 0);
+        setReferralsCount(dbUser.referrals ?? 0);
+      }
+    });
+    return () => unsubscribe();
+  }, [telegramUser]);
 
   // Auto-persist updates
   useEffect(() => {
