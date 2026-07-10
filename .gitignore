@@ -27,3 +27,8 @@ npm-debug.log*
 
 .vercel
 .env*
+
+# Firebase service account keys (NEVER commit these!)
+backend/*.json
+*firebase-adminsdk*.json
+serviceAccountKey.json

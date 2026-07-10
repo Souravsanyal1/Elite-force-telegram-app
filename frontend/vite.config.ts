@@ -9,4 +9,29 @@ export default defineConfig({
     host: true,
     port: 5173,
   },
+  build: {
+    // Code splitting for better mobile performance
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split vendor libs into separate chunks
+          'react-vendor': ['react', 'react-dom'],
+          'framer': ['framer-motion'],
+          'firebase-app': ['firebase/app', 'firebase/auth'],
+          'firebase-db': ['firebase/firestore', 'firebase/database'],
+          'lucide': ['lucide-react'],
+        },
+      },
+    },
+    // Enable minification
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,  // Remove console.log in production
+        drop_debugger: true,
+      },
+    },
+    // Target modern browsers for smaller bundle
+    target: 'esnext',
+  },
 });

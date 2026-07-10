@@ -274,22 +274,22 @@ export default function App() {
     localStorage.setItem('bypassTelegramCheck', JSON.stringify(bypassTelegramCheck));
   }, [bypassTelegramCheck]);
 
-  // Energy regeneration loop
+  // Energy regeneration loop — batched every 5s to reduce re-renders (same rate: +3/s)
   useEffect(() => {
     const interval = setInterval(() => {
       setEnergy(prev => {
         if (prev >= maxEnergy) return maxEnergy;
-        return Math.min(prev + 3, maxEnergy);
+        return Math.min(prev + 15, maxEnergy); // +15 per 5s = same as +3 per 1s
       });
-    }, 1000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [maxEnergy]);
 
-  // Preloader animation
+  // Preloader — faster on mobile
   useEffect(() => {
     const timer = setTimeout(() => {
       setLoading(false);
-    }, 2500);
+    }, 1200);
     return () => clearTimeout(timer);
   }, []);
 
@@ -315,14 +315,14 @@ export default function App() {
     showToast("Logged out of Admin console.", "info");
   };
 
-  // Generate random background particles
+  // Generate random background particles — reduced to 6 for mobile performance
   const [bgParticles] = useState(() => 
-    Array.from({ length: 12 }).map((_, i) => ({
+    Array.from({ length: 6 }).map((_, i) => ({
       id: i,
-      left: `${Math.random() * 100}%`,
-      delay: `${Math.random() * 8}s`,
-      duration: `${12 + Math.random() * 8}s`,
-      size: `${2 + Math.random() * 4}px`,
+      left: `${10 + Math.random() * 80}%`,
+      delay: `${Math.random() * 12}s`,
+      duration: `${18 + Math.random() * 10}s`,
+      size: `${2 + Math.random() * 3}px`,
     }))
   );
 

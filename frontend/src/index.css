@@ -82,8 +82,13 @@ html, body, #root {
   border-radius: 999px;
   background: radial-gradient(circle, rgba(0, 229, 255, 0.05) 0%, rgba(179, 136, 255, 0.04) 40%, rgba(5, 8, 22, 0) 70%);
   filter: blur(80px);
-  animation: var(--animate-aurora);
+  /* Use will-change to promote to GPU layer — no re-layout on animation */
+  will-change: transform;
+  transform: translate(-50%, 0);
+  /* Slow down animation significantly on mobile to reduce CPU usage */
+  animation: aurora-spin 45s linear infinite;
   transform-origin: center center;
+  contain: strict;
 }
 
 .bg-layer-aurora-secondary {
@@ -95,27 +100,37 @@ html, body, #root {
   border-radius: 999px;
   background: radial-gradient(circle, rgba(77, 140, 255, 0.04) 0%, rgba(179, 136, 255, 0.03) 50%, rgba(5, 8, 22, 0) 80%);
   filter: blur(90px);
-  animation: var(--animate-aurora) reverse;
-  animation-duration: 35s;
+  will-change: transform;
+  animation: aurora-spin 60s linear infinite reverse;
   transform-origin: center center;
+  contain: strict;
 }
 
-/* Glassmorphism Panels */
+/* Disable heavy aurora animations on low-power/mobile for max performance */
+@media (prefers-reduced-motion: reduce) {
+  .bg-layer-aurora, .bg-layer-aurora-secondary { animation: none !important; }
+  .particle { animation: none !important; display: none; }
+}
+
+/* Glassmorphism Panels — blur reduced from 24px to 12px for mobile GPU performance */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.035);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 16px 60px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  /* GPU compositing hint */
+  transform: translateZ(0);
+  contain: layout style;
 }
 
 .glass-card-interactive {
   background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 16px 60px rgba(0, 0, 0, 0.3);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
 
 .glass-card-interactive:hover, .glass-card-interactive:active {
@@ -179,18 +194,27 @@ html, body, #root {
   to { transform: rotate(360deg); }
 }
 
-/* Floating particles mockup */
+/* Floating particles — GPU-optimized with will-change & transform3d */
 .particle {
   position: absolute;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.10);
   border-radius: 999px;
   pointer-events: none;
-  animation: float-particle 14s linear infinite;
+  will-change: transform, opacity;
+  animation: float-particle 18s linear infinite;
+  contain: layout;
 }
 
 @keyframes float-particle {
-  0% { transform: translateY(105vh) translateX(0) scale(0.5); opacity: 0; }
-  15% { opacity: 0.7; }
-  85% { opacity: 0.7; }
-  100% { transform: translateY(-10vh) translateX(60px) scale(1.2); opacity: 0; }
+  0% { transform: translate3d(0, 105vh, 0) scale(0.5); opacity: 0; }
+  15% { opacity: 0.5; }
+  85% { opacity: 0.5; }
+  100% { transform: translate3d(60px, -10vh, 0) scale(1.2); opacity: 0; }
+}
+
+/* Scroll performance optimization */
+.custom-scrollbar {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
 }
