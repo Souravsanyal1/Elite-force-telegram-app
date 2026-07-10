@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Users, Check, X, Search, FileText, Ban, Edit3, Save } from 'lucide-react';
-import { getAllUsers, updateUserDatabaseValues, type FirestoreUser } from '../lib/userService';
+import { TrendingUp, Users, Check, X, Search, FileText, Ban, Edit3, Save, RefreshCw } from 'lucide-react';
+import { getAllUsers, updateUserDatabaseValues, getTotalUserCount, type FirestoreUser } from '../lib/userService';
 
 interface TokenSaleType {
   active: boolean;
@@ -46,6 +46,8 @@ export const Admin: React.FC<AdminProps> = ({
   const [usersList, setUsersList] = useState<FirestoreUser[]>([]);
   const [userSearch, setUserSearch] = useState('');
   const [editingUser, setEditingUser] = useState<FirestoreUser | null>(null);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [totalUserCount, setTotalUserCount] = useState(0);
   
   const [editPoints, setEditPoints] = useState(0);
   const [editWallet, setEditWallet] = useState(0);
@@ -54,13 +56,17 @@ export const Admin: React.FC<AdminProps> = ({
   const [savingUser, setSavingUser] = useState(false);
 
   // Fetch Firestore users on mount
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    const [dbUsers, count] = await Promise.all([getAllUsers(), getTotalUserCount()]);
+    setUsersList(dbUsers);
+    setTotalUserCount(count);
+    setLoadingUsers(false);
+  };
+
   useEffect(() => {
-    const fetchUsers = async () => {
-      const dbUsers = await getAllUsers();
-      setUsersList(dbUsers);
-    };
     fetchUsers();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startEditUser = (u: FirestoreUser) => {
     setEditingUser(u);
@@ -133,12 +139,14 @@ export const Admin: React.FC<AdminProps> = ({
       <div className="grid grid-cols-2 gap-3.5">
         <div className="glass-panel p-4 rounded-[20px] border-white/5 flex flex-col gap-1.5">
           <div className="flex justify-between items-center text-slate-500">
-            <span className="text-[9px] uppercase font-bold tracking-wider">Total Ecosystem Users</span>
+            <span className="text-[9px] uppercase font-bold tracking-wider">Total Registered Users</span>
             <Users size={12} />
           </div>
-          <span className="text-lg font-black text-white font-display">4,284,912</span>
-          <span className="text-[9px] text-accent-success font-semibold flex items-center gap-0.5">
-            <TrendingUp size={10} /> +14.2% Today
+          <span className="text-lg font-black text-white font-display">
+            {totalUserCount > 0 ? totalUserCount.toLocaleString() : (loadingUsers ? '...' : '0')}
+          </span>
+          <span className="text-[9px] text-slate-500 font-semibold flex items-center gap-0.5">
+            <TrendingUp size={10} /> Firestore live count
           </span>
         </div>
 
@@ -154,7 +162,17 @@ export const Admin: React.FC<AdminProps> = ({
 
       {/* User Registry Controller */}
       <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-3">
-        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">User Database Management</span>
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">User Database Management</span>
+          <button
+            onClick={fetchUsers}
+            disabled={loadingUsers}
+            className="flex items-center gap-1 text-[9px] text-slate-400 hover:text-accent-cyan transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={10} className={loadingUsers ? 'animate-spin' : ''} />
+            {loadingUsers ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
         
         {/* User Search Input */}
         <div className="flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5">

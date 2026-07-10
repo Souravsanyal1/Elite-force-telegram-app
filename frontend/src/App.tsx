@@ -90,8 +90,8 @@ export default function App() {
   // Ref to store the last synced points to prevent overwrite loop
   const lastSyncedPointsRef = useRef<number>(-1);
 
-  // Dynamic live stats for Admin Panel
-  const [liveUserCount, setLiveUserCount] = useState(15842);
+  // Dynamic live stats for Admin Panel (real from Firestore)
+  const [liveUserCount, setLiveUserCount] = useState(0);
 
   // Device Info parameters
   const [deviceInfo, setDeviceInfo] = useState<DeviceDetails>({

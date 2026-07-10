@@ -166,7 +166,9 @@ export const updateRiskLevel = async (
 export const getAllUsers = async (): Promise<FirestoreUser[]> => {
   if (!isFirebaseConfigured()) return [];
   try {
-    const querySnapshot = await getDocs(collection(db, USERS_COLLECTION));
+    const querySnapshot = await getDocs(
+      query(collection(db, USERS_COLLECTION), orderBy('points', 'desc'))
+    );
     const users: FirestoreUser[] = [];
     querySnapshot.forEach((docSnap) => {
       users.push(docSnap.data() as FirestoreUser);
@@ -174,6 +176,19 @@ export const getAllUsers = async (): Promise<FirestoreUser[]> => {
     return users;
   } catch {
     return [];
+  }
+};
+
+/**
+ * Gets total count of registered users in Firestore.
+ */
+export const getTotalUserCount = async (): Promise<number> => {
+  if (!isFirebaseConfigured()) return 0;
+  try {
+    const snapshot = await getCountFromServer(collection(db, USERS_COLLECTION));
+    return snapshot.data().count;
+  } catch {
+    return 0;
   }
 };
 
