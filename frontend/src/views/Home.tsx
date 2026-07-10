@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Trophy, Flame, ChevronRight, Zap, X, Bolt } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { getShortName, getDisplayName, type TelegramUser } from '../lib/telegramUser';
+import { recordTap } from '../lib/antiCheat';
 
 interface HomeProps {
   efcBalance: number;
@@ -12,6 +14,7 @@ interface HomeProps {
   maxEnergy: number;
   referralsCount: number;
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
+  telegramUser: TelegramUser | null;
 }
 
 interface FloatingText {
@@ -29,7 +32,8 @@ export const Home: React.FC<HomeProps> = ({
   setEnergy, 
   maxEnergy,
   referralsCount,
-  showToast 
+  showToast,
+  telegramUser
 }) => {
   const [isSpinning, setIsSpinning] = useState(false);
   const [clicks, setClicks] = useState<FloatingText[]>([]);
@@ -57,7 +61,7 @@ export const Home: React.FC<HomeProps> = ({
     return () => clearInterval(interval);
   }, [autoTapActive, setEfcBalance]);
 
-  // Click handler
+  // Click handler with anti-cheat
   const handleCoinClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (energy <= 0) {
       showToast('No energy remaining! Wait for regeneration or use a Boost.', 'warning');
@@ -76,6 +80,16 @@ export const Home: React.FC<HomeProps> = ({
     let tapMultiplier = 1;
     if (nextCombo > 25) tapMultiplier = 5;
     else if (nextCombo > 10) tapMultiplier = 2;
+
+    // Anti-cheat check
+    const { allowed, riskLevel, reason } = recordTap(tapMultiplier);
+    if (!allowed) {
+      showToast(reason ?? 'Slow down! Anti-cheat triggered.', 'warning');
+      return;
+    }
+    if (riskLevel === 'high') {
+      showToast('⚠️ High tap rate detected. Your account is flagged for review.', 'error');
+    }
 
     setIsSpinning(true);
     setEfcBalance(prev => prev + tapMultiplier);
@@ -146,7 +160,7 @@ export const Home: React.FC<HomeProps> = ({
     { rank: 2, name: 'ton_whale_99', points: 984500, referrals: 245, premium: true },
     { rank: 3, name: 'ether_king', points: 843200, referrals: 189, premium: false },
     { rank: 4, name: 'affiliate_pro', points: 512000, referrals: 110, premium: true },
-    { rank: 5, name: 'Sourav Sanyal (You)', points: efcBalance, referrals: referralsCount, premium: true },
+    { rank: 5, name: `${getDisplayName(telegramUser)} (You)`, points: efcBalance, referrals: referralsCount, premium: telegramUser?.isPremium ?? true },
     { rank: 6, name: 'sol_sniper', points: 412500, referrals: 92, premium: false },
   ];
 
@@ -164,11 +178,13 @@ export const Home: React.FC<HomeProps> = ({
             Elite Member
           </h2>
           <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-1.5">
-            Hello Sourav <span className="animate-bounce origin-bottom">👋</span>
-            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-gradient-to-r from-accent-purple via-accent-cyan to-accent-blue text-white shadow-[0_0_15px_rgba(0,229,255,0.4)] relative overflow-hidden group">
-              <span className="absolute inset-0 w-full h-full bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-              👑 Premium
-            </span>
+            Hello {getShortName(telegramUser)} <span className="animate-bounce origin-bottom">👋</span>
+            {telegramUser?.isPremium && (
+              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-gradient-to-r from-accent-purple via-accent-cyan to-accent-blue text-white shadow-[0_0_15px_rgba(0,229,255,0.4)] relative overflow-hidden group">
+                <span className="absolute inset-0 w-full h-full bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+                👑 Premium
+              </span>
+            )}
           </h1>
         </div>
 

@@ -1,12 +1,14 @@
 import { Copy, ShieldCheck, Trophy, Calendar, Globe2 } from 'lucide-react';
+import { getDisplayName, type TelegramUser } from '../lib/telegramUser';
 
 interface ProfileProps {
   efcBalance: number;
   connectedAddress: string | null;
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
+  telegramUser: TelegramUser | null;
 }
 
-export const Profile = ({ efcBalance, connectedAddress, showToast }: ProfileProps) => {
+export const Profile = ({ efcBalance, connectedAddress, showToast, telegramUser }: ProfileProps) => {
   const userAddress = connectedAddress 
     ? `${connectedAddress.slice(0, 8)}...${connectedAddress.slice(-8)}`
     : "No Wallet Connected";
@@ -41,9 +43,20 @@ export const Profile = ({ efcBalance, connectedAddress, showToast }: ProfileProp
         <div className="absolute top-0 right-0 w-24 h-24 bg-accent-purple/10 rounded-full filter blur-xl"></div>
         
         {/* Avatar with Telegram Premium Outer Ring */}
-        <div className="relative shrink-0 w-16 h-16 rounded-full p-[3px] bg-gradient-to-tr from-accent-purple via-accent-cyan to-accent-gold drop-shadow-[0_0_10px_rgba(179,136,255,0.3)] animate-pulse">
+        <div className={`relative shrink-0 w-16 h-16 rounded-full p-[3px] drop-shadow-[0_0_10px_rgba(179,136,255,0.3)] ${telegramUser?.isPremium ? 'animate-pulse bg-gradient-to-tr from-accent-purple via-accent-cyan to-accent-gold' : 'bg-gradient-to-tr from-slate-600 to-slate-400'}`}>
           <div className="w-full h-full rounded-full bg-[#12182D] flex items-center justify-center text-white font-bold text-xl relative overflow-hidden">
-            SS
+            {telegramUser?.photoUrl ? (
+              <img
+                src={telegramUser.photoUrl}
+                alt={getDisplayName(telegramUser)}
+                className="w-full h-full object-cover rounded-full"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : (
+              <span className="text-lg font-bold">
+                {(telegramUser?.firstName?.[0] ?? 'E').toUpperCase()}{(telegramUser?.lastName?.[0] ?? 'F').toUpperCase()}
+              </span>
+            )}
           </div>
           {/* Country flag indicator */}
           <div className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-[#12182D] border border-white/10 flex items-center justify-center text-[10px]" title="Bangladesh">
@@ -54,15 +67,19 @@ export const Profile = ({ efcBalance, connectedAddress, showToast }: ProfileProp
         {/* User profile tags */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1">
-            <h2 className="text-base font-bold text-white tracking-tight truncate">Sourav Sanyal</h2>
+            <h2 className="text-base font-bold text-white tracking-tight truncate">{getDisplayName(telegramUser)}</h2>
             <div className="p-0.5 rounded bg-accent-cyan/10 border border-accent-cyan/20 text-accent-cyan flex items-center justify-center" title="Verified User">
               <ShieldCheck size={11} className="stroke-[2.5]" />
             </div>
-            <span className="text-[8px] font-black uppercase text-accent-gold flex items-center gap-0.5 bg-accent-gold/10 border border-accent-gold/15 px-1.5 py-0.5 rounded">
-              👑 Premium
-            </span>
+            {telegramUser?.isPremium && (
+              <span className="text-[8px] font-black uppercase text-accent-gold flex items-center gap-0.5 bg-accent-gold/10 border border-accent-gold/15 px-1.5 py-0.5 rounded">
+                👑 Premium
+              </span>
+            )}
           </div>
-          <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-medium">Node Member #89741</span>
+          <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-medium">
+            Node Member #{telegramUser?.id ?? 89741}
+          </span>
         </div>
       </div>
 

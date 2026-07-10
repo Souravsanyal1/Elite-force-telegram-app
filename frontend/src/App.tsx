@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, CheckCircle, Info, ShieldAlert, Award, Smartphone, Lock } from 'lucide-react';
 import { ActiveTab, Navigation } from './components/Navigation';
@@ -10,6 +10,9 @@ import { Profile } from './views/Profile';
 import { Settings } from './views/Settings';
 import { Admin } from './views/Admin';
 import { AdminLogin } from './views/AdminLogin';
+import { getTelegramWebAppData, type TelegramUser } from './lib/telegramUser';
+import { upsertUser, setUserOffline, syncPointsToFirestore, getOnlineUserCount } from './lib/userService';
+import { isFirebaseConfigured } from './lib/firebase';
 
 interface Toast {
   id: number;
@@ -82,6 +85,12 @@ export default function App() {
   const [isTelegramWebview, setIsTelegramWebview] = useState(false);
   const [bypassTelegramCheck, setBypassTelegramCheck] = useState(() => getPersisted('bypassTelegramCheck', false));
 
+  // Telegram user data (real from SDK or mock in dev)
+  const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null);
+
+  // Ref to store telegramId for cleanup
+  const telegramIdRef = useRef<number | null>(null);
+
   // Dynamic live stats for Admin Panel
   const [liveUserCount, setLiveUserCount] = useState(15842);
 
@@ -125,7 +134,37 @@ export default function App() {
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       userAgent: ua
     });
-  }, []);
+
+    // Parse Telegram user from WebApp SDK
+    const webAppData = getTelegramWebAppData();
+    if (webAppData.user) {
+      setTelegramUser(webAppData.user);
+      telegramIdRef.current = webAppData.user.id;
+
+      // Upsert Firestore user doc
+      upsertUser(
+        webAppData.user,
+        {
+          platform: navigator.platform || 'Web',
+          browser: detectedBrowser,
+          os: detectedOS,
+          resolution: `${window.screen.width}x${window.screen.height}`,
+          language: navigator.language || 'en',
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+        },
+        efcBalance
+      ).catch(() => {});
+    }
+
+    // Set user offline on tab/window close
+    const handleUnload = () => {
+      if (telegramIdRef.current) {
+        setUserOffline(telegramIdRef.current);
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync route path changes
   useEffect(() => {
@@ -133,7 +172,6 @@ export default function App() {
       setCurrentPath(window.location.pathname);
     };
     window.addEventListener('popstate', handleLocationChange);
-    // Overload pushState to react dynamically to route transitions
     const originalPushState = window.history.pushState;
     window.history.pushState = function(...args) {
       originalPushState.apply(this, args);
@@ -144,6 +182,27 @@ export default function App() {
       window.history.pushState = originalPushState;
     };
   }, []);
+
+  // Sync Firestore online user count every 30 seconds
+  useEffect(() => {
+    if (!isFirebaseConfigured()) return;
+    const syncCount = async () => {
+      const count = await getOnlineUserCount();
+      if (count > 0) setLiveUserCount(count);
+    };
+    syncCount();
+    const interval = setInterval(syncCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Sync EForce points to Firestore when balance changes
+  useEffect(() => {
+    if (!telegramUser) return;
+    const timeout = setTimeout(() => {
+      syncPointsToFirestore(telegramUser.id, efcBalance).catch(() => {});
+    }, 3000); // debounce 3s
+    return () => clearTimeout(timeout);
+  }, [efcBalance, telegramUser]);
 
   // Auto-persist updates
   useEffect(() => {
@@ -254,7 +313,8 @@ export default function App() {
             setEnergy={setEnergy}
             maxEnergy={maxEnergy}
             referralsCount={referralsCount}
-            showToast={showToast} 
+            showToast={showToast}
+            telegramUser={telegramUser}
           />
         );
       case 'tasks':
@@ -304,7 +364,8 @@ export default function App() {
           <Profile 
             efcBalance={efcBalance} 
             connectedAddress={connectedAddress}
-            showToast={showToast} 
+            showToast={showToast}
+            telegramUser={telegramUser}
           />
         );
       case 'settings':

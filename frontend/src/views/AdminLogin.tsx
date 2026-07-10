@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Shield, Key, Mail, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth, isFirebaseConfigured } from '../lib/firebase';
 
 interface AdminLoginProps {
   onLoginSuccess: () => void;
@@ -7,12 +9,12 @@ interface AdminLoginProps {
 }
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, showToast }) => {
-  const [email, setEmail] = useState('admin@eforce.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       showToast("Please fill in all credentials.", "warning");
@@ -20,17 +22,38 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, showToas
     }
 
     setLoading(true);
-    // Simulate Firebase Authentication check
-    setTimeout(() => {
+
+    // If Firebase is not configured, fall back to hardcoded dev check
+    if (!isFirebaseConfigured()) {
+      setTimeout(() => {
+        setLoading(false);
+        if (email === 'admin@eforce.com' && password === 'admin123') {
+          showToast("Dev mode: Admin session authorized.", "success");
+          onLoginSuccess();
+        } else {
+          showToast("Invalid credentials. Access Denied.", "error");
+        }
+      }, 1000);
+      return;
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      showToast("Firebase Auth ✓ — Authorized Admin session.", "success");
+      onLoginSuccess();
+    } catch (err: unknown) {
       setLoading(false);
-      if (email === 'admin@eforce.com' && password === 'admin123') {
-        showToast("Firebase Auth success! Authorized Admin session.", "success");
-        onLoginSuccess();
-      } else {
+      const code = (err as { code?: string })?.code ?? '';
+      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
         showToast("Invalid credentials. Access Denied.", "error");
+      } else if (code === 'auth/too-many-requests') {
+        showToast("Too many login attempts. Try again later.", "error");
+      } else {
+        showToast("Authentication error. Check Firebase config.", "error");
       }
-    }, 1500);
+    }
   };
+
 
   return (
     <div className="flex flex-col justify-center items-center min-h-[60vh] px-4 select-none">
