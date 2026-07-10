@@ -372,9 +372,10 @@ export const Home: React.FC<HomeProps> = ({
         {/* Coin Tap */}
         <motion.div
           onClick={handleCoinClick}
+          onContextMenu={(e) => e.preventDefault()}
           animate={isSpinning ? { scale: 0.93, rotateY: 12 } : { scale: 1, rotateY: 0 }}
           transition={{ duration: 0.13 }}
-          className="relative w-64 h-64 cursor-pointer select-none flex items-center justify-center"
+          className="relative w-64 h-64 cursor-pointer select-none flex items-center justify-center coin-tap-container"
           style={{ perspective: 900 }}
         >
           {/* Multi-layer ambient glow rings */}
@@ -402,7 +403,7 @@ export const Home: React.FC<HomeProps> = ({
             src="/coin.png"
             alt="EF Coin"
             draggable={false}
-            className="relative z-10 w-full h-full object-contain select-none drop-shadow-[0_0_28px_rgba(255,215,0,0.35)]"
+            className="relative z-10 w-full h-full object-contain select-none drop-shadow-[0_0_28px_rgba(255,215,0,0.35)] coin-image"
           />
 
           {/* Floating click texts */}

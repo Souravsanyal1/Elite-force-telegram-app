@@ -218,3 +218,20 @@ html, body, #root {
   overscroll-behavior: contain;
   scroll-behavior: smooth;
 }
+
+/* Disables context menus, highlighting, selection overlays and drag on tapping coin */
+.coin-tap-container {
+  -webkit-tap-highlight-color: transparent !important;
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  touch-action: manipulation !important; /* Prevents double-tap zooming & selection lag */
+  outline: none !important;
+}
+
+.coin-image {
+  -webkit-user-drag: none !important;
+  user-drag: none !important;
+  pointer-events: none !important; /* Lets touch/clicks pass through to container */
+  -webkit-touch-callout: none !important;
+}
