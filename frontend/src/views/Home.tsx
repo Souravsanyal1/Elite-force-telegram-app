@@ -325,18 +325,41 @@ export const Home: React.FC<HomeProps> = ({
           <span className="text-[9px] text-slate-500 font-bold shrink-0">{energy}/{maxEnergy}</span>
         </div>
 
-        {/* Coin */}
+        {/* Coin Tap */}
         <motion.div
           onClick={handleCoinClick}
-          animate={isSpinning ? { scale: 0.93, rotateY: 15 } : { scale: 1, rotateY: 0 }}
-          transition={{ duration: 0.15 }}
-          className="relative w-64 h-64 rounded-full cursor-pointer select-none"
-          style={{ perspective: 800 }}
+          animate={isSpinning ? { scale: 0.93, rotateY: 12 } : { scale: 1, rotateY: 0 }}
+          transition={{ duration: 0.13 }}
+          className="relative w-64 h-64 cursor-pointer select-none flex items-center justify-center"
+          style={{ perspective: 900 }}
         >
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#FF8A00]/30 to-[#FF5500]/20 blur-2xl animate-pulse" />
-          <div className="relative w-full h-full rounded-full overflow-hidden border-4 border-[#FFD700]/30 flex items-center justify-center shadow-[0_0_40px_rgba(255,138,0,0.4)] bg-gradient-to-br from-[#1E2338] via-[#0E1225] to-[#050816]">
-            <img src="/coin.png" alt="EF Coin" className="w-full h-full object-contain select-none" />
-          </div>
+          {/* Multi-layer ambient glow rings */}
+          <div className="absolute inset-[-16px] rounded-full bg-[#FFD700]/10 blur-3xl animate-pulse" />
+          <div className="absolute inset-[-4px] rounded-full bg-[#FF8A00]/20 blur-xl animate-pulse" style={{ animationDelay: '0.5s' }} />
+
+          {/* Rotating orbit ring */}
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 8, ease: 'linear' }}
+            className="absolute inset-0 rounded-full border border-dashed border-[#FFD700]/15"
+          />
+
+          {/* Gold solid ring border */}
+          <div
+            className="absolute inset-[2px] rounded-full pointer-events-none"
+            style={{
+              border: '2px solid rgba(255,215,0,0.18)',
+              boxShadow: '0 0 30px rgba(255,138,0,0.25), inset 0 0 20px rgba(255,215,0,0.06)',
+            }}
+          />
+
+          {/* Coin image — transparent background, full size */}
+          <img
+            src="/coin.png"
+            alt="EF Coin"
+            draggable={false}
+            className="relative z-10 w-full h-full object-contain select-none drop-shadow-[0_0_28px_rgba(255,215,0,0.35)]"
+          />
 
           {/* Floating click texts */}
           <AnimatePresence>
@@ -344,10 +367,10 @@ export const Home: React.FC<HomeProps> = ({
               <motion.div
                 key={click.id}
                 initial={{ opacity: 1, y: 0, x: click.x - 128 }}
-                animate={{ opacity: 0, y: -60 }}
+                animate={{ opacity: 0, y: -65 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.9 }}
-                className="absolute pointer-events-none font-black text-[#FFD700] text-sm drop-shadow-lg"
+                transition={{ duration: 0.85 }}
+                className="absolute pointer-events-none font-black text-[#FFD700] text-base drop-shadow-[0_2px_8px_rgba(255,215,0,0.6)] z-20"
                 style={{ top: click.y - 16, left: 0 }}
               >
                 +{click.value}
