@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Trophy, Flame, ChevronRight, Zap, Play, Square } from 'lucide-react';
+import { Sparkles, Trophy, Flame, ChevronRight, Zap, Play, Square, Star } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getShortName, getDisplayName, type TelegramUser } from '../lib/telegramUser';
 import { recordTap } from '../lib/antiCheat';
-import { getLeaderboardUsers, recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, type FirestoreUser } from '../lib/userService';
+import { getLeaderboardUsers, recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, subscribeToUser, type FirestoreUser } from '../lib/userService';
 import { subscribeToAdminSettings, type AdminSettings, DEFAULT_ADMIN_SETTINGS } from '../lib/adminSettingsService';
 
 interface HomeProps {
@@ -66,6 +66,14 @@ export const Home: React.FC<HomeProps> = ({
   // Leaderboard
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [dbUsers, setDbUsers] = useState<FirestoreUser[]>([]);
+  const [dbUser, setDbUser] = useState<FirestoreUser | null>(null);
+
+  // Subscribe to real-time user document changes in Firestore
+  useEffect(() => {
+    if (!telegramUser) return;
+    const unsubscribe = subscribeToUser(telegramUser.id, setDbUser);
+    return unsubscribe;
+  }, [telegramUser]);
 
   // Load leaderboard
   useEffect(() => {
@@ -262,8 +270,14 @@ export const Home: React.FC<HomeProps> = ({
       {/* Welcome Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-black text-white tracking-tight">
-            Hey, {displayName.split(' ')[0]} 👋
+          <h1 className="text-xl font-black text-white tracking-tight flex items-center gap-1.5">
+            Hey, {displayName.split(' ')[0]}
+            {(telegramUser?.isPremium || dbUser?.isTelegramPremium) && (
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-accent-cyan/15 border border-accent-cyan/35 text-accent-cyan shadow-[0_0_8px_rgba(0,229,255,0.25)] select-none">
+                <Star size={9} className="fill-current text-accent-cyan" />
+              </span>
+            )}
+            👋
           </h1>
           <p className="text-[10px] text-slate-500 mt-0.5 font-semibold uppercase tracking-widest">
             EForce Mining Dashboard

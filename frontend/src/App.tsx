@@ -11,7 +11,7 @@ import { Settings } from './views/Settings';
 import { Admin } from './views/Admin';
 import { AdminLogin } from './views/AdminLogin';
 import { getTelegramWebAppData, type TelegramUser } from './lib/telegramUser';
-import { upsertUser, setUserOffline, syncPointsToFirestore, getOnlineUserCount, subscribeToUser } from './lib/userService';
+import { upsertUser, setUserOffline, syncPointsToFirestore, getOnlineUserCount, subscribeToUser, type FirestoreUser } from './lib/userService';
 import { isFirebaseConfigured } from './lib/firebase';
 
 interface Toast {
@@ -85,6 +85,7 @@ export default function App() {
 
   // Telegram user data (real from SDK or mock in dev)
   const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null);
+  const [dbUser, setDbUser] = useState<FirestoreUser | null>(null);
 
   // Ref to store telegramId for cleanup
   const telegramIdRef = useRef<number | null>(null);
@@ -209,15 +210,16 @@ export default function App() {
   // Subscribe to real-time user document changes in Firestore
   useEffect(() => {
     if (!telegramUser) return;
-    const unsubscribe = subscribeToUser(telegramUser.id, (dbUser) => {
-      if (dbUser) {
+    const unsubscribe = subscribeToUser(telegramUser.id, (user) => {
+      if (user) {
+        setDbUser(user);
         // Only update local state if db points is different from last synced value
-        if (dbUser.points !== lastSyncedPointsRef.current) {
-          setEfcBalance(dbUser.points ?? 0);
-          lastSyncedPointsRef.current = dbUser.points ?? 0;
+        if (user.points !== lastSyncedPointsRef.current) {
+          setEfcBalance(user.points ?? 0);
+          lastSyncedPointsRef.current = user.points ?? 0;
         }
-        setUsdtBalance(dbUser.wallet ?? 0);
-        setReferralsCount(dbUser.referrals ?? 0);
+        setUsdtBalance(user.wallet ?? 0);
+        setReferralsCount(user.referrals ?? 0);
       }
     });
     return () => unsubscribe();
@@ -476,6 +478,21 @@ export default function App() {
               Launch Simulator (Bypass Check)
             </button>
           </div>
+        </div>
+      );
+    }
+
+    // Block flagged or banned users from accessing the app features
+    const isRestricted = dbUser && (dbUser.flagCount > 0 || dbUser.banStatus !== 'none');
+
+    if (isRestricted) {
+      return (
+        <div className="flex flex-col items-center justify-center p-8 text-center min-h-[60vh] select-none">
+          <ShieldAlert size={52} className="text-accent-danger mb-4 animate-pulse" />
+          <h2 className="text-xl font-black text-white tracking-wide uppercase mb-2">Access Restricted 🚩</h2>
+          <p className="text-xs text-slate-400 max-w-[280px] leading-relaxed mb-6">
+            Your account access has been suspended or restricted due to suspicious activities or policy violation. You cannot mine EForce points or use other ecosystem services.
+          </p>
         </div>
       );
     }
