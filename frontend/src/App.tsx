@@ -67,7 +67,17 @@ export default function App() {
 
   // Route and Auth parameters
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => getPersisted('isAdminAuthenticated', false));
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    try {
+      const session = localStorage.getItem('admin_session');
+      if (session) {
+        const parsed = JSON.parse(session);
+        if (parsed.expires && Date.now() < parsed.expires) return true;
+        localStorage.removeItem('admin_session');
+      }
+    } catch { /* ignore */ }
+    return getPersisted('isAdminAuthenticated', false);
+  });
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   // Telegram environment parameters
@@ -299,6 +309,8 @@ export default function App() {
 
   const handleAdminLogout = () => {
     setIsAdminAuthenticated(false);
+    localStorage.removeItem('admin_session');
+    localStorage.removeItem('isAdminAuthenticated');
     window.history.pushState({}, '', '/admin-login');
     showToast("Logged out of Admin console.", "info");
   };

@@ -1,59 +1,101 @@
 import React, { useState } from 'react';
-import { Shield, Key, Mail, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Shield, Key, ArrowRight, Eye, EyeOff, Hash } from 'lucide-react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth, isFirebaseConfigured } from '../lib/firebase';
+import { auth, db, isFirebaseConfigured } from '../lib/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface AdminLoginProps {
   onLoginSuccess: () => void;
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
+// Authorized admin Telegram IDs — these users can access the console
+const AUTHORIZED_ADMIN_IDS = ['3504353451'];
+
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, showToast }) => {
-  const [email, setEmail] = useState('');
+  const [telegramId, setTelegramId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    if (!telegramId || !password) {
       showToast("Please fill in all credentials.", "warning");
       return;
     }
 
     setLoading(true);
 
-    // If Firebase is not configured, fall back to hardcoded dev check
-    if (!isFirebaseConfigured()) {
-      setTimeout(() => {
-        setLoading(false);
-        if (email === 'admin@eforce.com' && password === 'admin123') {
-          showToast("Dev mode: Admin session authorized.", "success");
+    // ── Method 1: Telegram ID based auth (primary) ──────────────────────────
+    if (AUTHORIZED_ADMIN_IDS.includes(telegramId.trim())) {
+      if (!isFirebaseConfigured()) {
+        // Dev mode fallback
+        setTimeout(() => {
+          setLoading(false);
+          if (password === 'admin123') {
+            showToast("Dev mode: Admin session authorized.", "success");
+            onLoginSuccess();
+          } else {
+            showToast("Invalid password. Access Denied.", "error");
+          }
+        }, 800);
+        return;
+      }
+
+      // Verify password stored in Firestore adminSettings
+      try {
+        const settingsRef = doc(db, 'adminSettings', 'config');
+        const settingsSnap = await getDoc(settingsRef);
+
+        let storedPassword = 'admin123'; // default password
+        if (settingsSnap.exists()) {
+          storedPassword = settingsSnap.data()?.adminPassword ?? 'admin123';
+        } else {
+          // First time: create admin settings with default password
+          await setDoc(settingsRef, { adminPassword: 'admin123' }, { merge: true });
+        }
+
+        if (password === storedPassword) {
+          // Store admin session in localStorage
+          localStorage.setItem('admin_session', JSON.stringify({
+            telegramId: telegramId.trim(),
+            loginTime: Date.now(),
+            expires: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+          }));
+          showToast("✅ Admin session authorized.", "success");
+          setLoading(false);
           onLoginSuccess();
         } else {
-          showToast("Invalid credentials. Access Denied.", "error");
+          showToast("Invalid password. Access Denied.", "error");
+          setLoading(false);
         }
-      }, 1000);
+      } catch (err) {
+        console.error("Admin auth error:", err);
+        showToast("Authentication error. Please try again.", "error");
+        setLoading(false);
+      }
       return;
     }
 
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      showToast("Firebase Auth ✓ — Authorized Admin session.", "success");
-      onLoginSuccess();
-    } catch (err: unknown) {
+    // ── Method 2: Firebase Email Auth fallback (for old email-based login) ──
+    if (!isFirebaseConfigured()) {
       setLoading(false);
-      const code = (err as { code?: string })?.code ?? '';
-      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-        showToast("Invalid credentials. Access Denied.", "error");
-      } else if (code === 'auth/too-many-requests') {
-        showToast("Too many login attempts. Try again later.", "error");
-      } else {
-        showToast("Authentication error. Check Firebase config.", "error");
-      }
+      showToast("Unauthorized ID. Access Denied.", "error");
+      return;
+    }
+
+    // Try as email/password with Firebase Auth
+    try {
+      await signInWithEmailAndPassword(auth, telegramId, password);
+      showToast("Firebase Auth ✓ — Authorized Admin session.", "success");
+      setLoading(false);
+      onLoginSuccess();
+    } catch {
+      setLoading(false);
+      showToast("Unauthorized ID. Access Denied.", "error");
     }
   };
-
 
   return (
     <div className="flex flex-col justify-center items-center min-h-[60vh] px-4 select-none">
@@ -73,17 +115,18 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, showToas
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {/* Email field */}
+          {/* Telegram ID field */}
           <div className="flex flex-col gap-1">
-            <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider pl-1">Admin Email</span>
+            <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider pl-1">Admin Telegram ID</span>
             <div className="flex items-center gap-2 bg-[#12182D] border border-white/8 rounded-xl px-3.5 py-2 focus-within:border-accent-cyan transition-all">
-              <Mail size={14} className="text-slate-500 shrink-0" />
+              <Hash size={14} className="text-slate-500 shrink-0" />
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@eforce.com"
+                type="text"
+                value={telegramId}
+                onChange={(e) => setTelegramId(e.target.value)}
+                placeholder="Your Telegram ID"
                 className="bg-transparent border-none outline-none text-xs text-white w-full placeholder-slate-600"
+                inputMode="numeric"
               />
             </div>
           </div>
