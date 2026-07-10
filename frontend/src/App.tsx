@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, CheckCircle, Info, ShieldAlert, Smartphone, Lock } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, ShieldAlert, Lock } from 'lucide-react';
 import { ActiveTab, Navigation } from './components/Navigation';
 import { Home } from './views/Home';
 import { Tasks } from './views/Tasks';
@@ -18,16 +18,6 @@ interface Toast {
   id: number;
   message: string;
   type: 'success' | 'error' | 'warning' | 'info';
-}
-
-interface DeviceDetails {
-  platform: string;
-  browser: string;
-  os: string;
-  resolution: string;
-  language: string;
-  timezone: string;
-  userAgent: string;
 }
 
 export default function App() {
@@ -96,16 +86,7 @@ export default function App() {
   // Dynamic live stats for Admin Panel (real from Firestore)
   const [liveUserCount, setLiveUserCount] = useState(0);
 
-  // Device Info parameters
-  const [deviceInfo, setDeviceInfo] = useState<DeviceDetails>({
-    platform: 'Unknown',
-    browser: 'Unknown',
-    os: 'Unknown',
-    resolution: 'Unknown',
-    language: 'en',
-    timezone: 'UTC',
-    userAgent: ''
-  });
+
 
   // Device & Telegram signature checks
   useEffect(() => {
@@ -127,15 +108,6 @@ export default function App() {
     else if (ua.includes('Safari') && !ua.includes('Chrome')) detectedBrowser = 'Safari';
     else if (ua.includes('Telegram')) detectedBrowser = 'Telegram WebView';
 
-    setDeviceInfo({
-      platform: navigator.platform || 'Web',
-      browser: detectedBrowser,
-      os: detectedOS,
-      resolution: `${window.screen.width}x${window.screen.height}`,
-      language: navigator.language || 'en',
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-      userAgent: ua
-    });
 
     // Parse Telegram user from WebApp SDK
     const webAppData = getTelegramWebAppData();
@@ -514,17 +486,7 @@ export default function App() {
     return (
       <div className="w-full h-full relative flex flex-col overflow-hidden">
         
-        {/* Device metadata indicator header */}
-        <div className="flex justify-between items-center px-5 pt-3.5 pb-2 text-[9px] text-slate-500 font-bold uppercase tracking-wider bg-white/[0.01] border-b border-white/5 z-20">
-          <div className="flex items-center gap-1">
-            <Smartphone size={10} className="text-slate-500" />
-            <span>{deviceInfo.os} ({deviceInfo.browser})</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent-success animate-ping"></span>
-            <span>Live node active</span>
-          </div>
-        </div>
+
 
         {/* Dynamic content scroll area */}
         <div className="flex-1 overflow-y-auto px-5 pt-4 pb-20 custom-scrollbar relative z-10">
