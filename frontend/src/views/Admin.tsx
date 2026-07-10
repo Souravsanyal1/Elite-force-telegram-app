@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { TrendingUp, Users, Check, X, Search, FileText, Ban } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { TrendingUp, Users, Check, X, Search, FileText, Ban, Edit3, Save } from 'lucide-react';
+import { getAllUsers, updateUserDatabaseValues, type FirestoreUser } from '../lib/userService';
 
 interface TokenSaleType {
   active: boolean;
@@ -40,6 +41,60 @@ export const Admin: React.FC<AdminProps> = ({
   // Local token sale configurator form
   const [icoPrice, setIcoPrice] = useState(tokenSale.price.toString());
   const [icoSupply, setIcoSupply] = useState(tokenSale.totalSupply.toString());
+
+  // Firestore user query/modification state
+  const [usersList, setUsersList] = useState<FirestoreUser[]>([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [editingUser, setEditingUser] = useState<FirestoreUser | null>(null);
+  
+  const [editPoints, setEditPoints] = useState(0);
+  const [editWallet, setEditWallet] = useState(0);
+  const [editReferrals, setEditReferrals] = useState(0);
+  const [editRiskLevel, setEditRiskLevel] = useState<'safe' | 'medium' | 'high'>('safe');
+  const [savingUser, setSavingUser] = useState(false);
+
+  // Fetch Firestore users on mount
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const dbUsers = await getAllUsers();
+      setUsersList(dbUsers);
+    };
+    fetchUsers();
+  }, []);
+
+  const startEditUser = (u: FirestoreUser) => {
+    setEditingUser(u);
+    setEditPoints(u.points ?? 0);
+    setEditWallet(u.wallet ?? 0);
+    setEditReferrals(u.referrals ?? 0);
+    setEditRiskLevel(u.riskLevel ?? 'safe');
+  };
+
+  const handleSaveUser = async () => {
+    if (!editingUser) return;
+    setSavingUser(true);
+    const success = await updateUserDatabaseValues(editingUser.telegramId, {
+      points: editPoints,
+      wallet: editWallet,
+      referrals: editReferrals,
+      riskLevel: editRiskLevel,
+    });
+    setSavingUser(false);
+    if (success) {
+      showToast(`User ${editingUser.firstName} updated successfully!`, 'success');
+      setUsersList(prev => prev.map(u => u.telegramId === editingUser.telegramId ? {
+        ...u,
+        points: editPoints,
+        wallet: editWallet,
+        referrals: editReferrals,
+        riskLevel: editRiskLevel,
+      } : u));
+      setEditingUser(null);
+    } else {
+      showToast("Error updating user document.", "error");
+    }
+  };
+
 
   const handleAction = (requestId: string, action: 'Approved' | 'Rejected' | 'Banned') => {
     setWithdrawRequests(prev => prev.map(req => {
@@ -94,6 +149,69 @@ export const Admin: React.FC<AdminProps> = ({
           </div>
           <span className="text-lg font-black text-accent-cyan font-display">{liveUserCount.toLocaleString()}</span>
           <span className="text-[9px] text-slate-500 font-semibold">Active Telegram listeners</span>
+        </div>
+      </div>
+
+      {/* User Registry Controller */}
+      <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-3">
+        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">User Database Management</span>
+        
+        {/* User Search Input */}
+        <div className="flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5">
+          <Search size={12} className="text-slate-500 shrink-0" />
+          <input
+            type="text"
+            placeholder="Search users by name, username or ID..."
+            value={userSearch}
+            onChange={(e) => setUserSearch(e.target.value)}
+            className="bg-transparent border-none outline-none text-[11px] text-slate-300 w-full placeholder-slate-500"
+          />
+        </div>
+
+        {/* User Registry List */}
+        <div className="flex flex-col gap-2.5 max-h-[220px] overflow-y-auto pr-1">
+          {usersList
+            .filter(u => 
+              (u.firstName + ' ' + u.lastName).toLowerCase().includes(userSearch.toLowerCase()) ||
+              u.username?.toLowerCase().includes(userSearch.toLowerCase()) ||
+              String(u.telegramId).includes(userSearch)
+            )
+            .map((u) => (
+              <div key={u.telegramId} className="flex items-center justify-between bg-white/[0.02] border border-white/4 rounded-xl p-2.5 hover:bg-white/[0.04] transition-all">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-[#1A1F37] border border-white/10 shrink-0 flex items-center justify-center text-xs font-bold text-slate-300">
+                    {u.photoUrl ? (
+                      <img src={u.photoUrl} alt="" className="w-full h-full object-cover rounded-full" />
+                    ) : (
+                      (u.firstName?.[0] ?? 'E').toUpperCase()
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[11px] font-bold text-white block truncate">{u.firstName} {u.lastName}</span>
+                    <span className="text-[9px] text-slate-500 block truncate">@{u.username || 'no_username'} • {u.telegramId}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-accent-cyan block">{u.points?.toLocaleString() ?? 0} EForce</span>
+                    <span className="text-[8px] text-slate-400 block">${u.wallet ?? 0} USDT</span>
+                  </div>
+                  <button 
+                    onClick={() => startEditUser(u)}
+                    className="p-1.5 rounded-lg bg-white/5 border border-white/8 text-slate-400 hover:text-white transition-all cursor-pointer"
+                  >
+                    <Edit3 size={11} />
+                  </button>
+                </div>
+              </div>
+            ))
+          }
+          {usersList.length === 0 && (
+            <div className="text-center py-4 text-[10px] text-slate-600 uppercase font-bold tracking-wider">
+              No registered user documents found.
+            </div>
+          )}
         </div>
       </div>
 
@@ -352,6 +470,102 @@ export const Admin: React.FC<AdminProps> = ({
           )}
         </div>
       </div>
+
+      {/* User Editor Overlay Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-[320px] glass-panel border-white/10 rounded-[28px] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative overflow-hidden">
+            {/* Glow */}
+            <div className="absolute top-0 right-0 w-24 h-24 bg-accent-cyan/10 rounded-full filter blur-xl"></div>
+            
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-black text-white uppercase tracking-wider">Modify Node Parameters</h3>
+              <button 
+                onClick={() => setEditingUser(null)}
+                className="p-1 rounded-lg bg-white/5 border border-white/8 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X size={12} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 mb-4 bg-white/[0.02] border border-white/5 p-2 rounded-xl">
+              <div className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                {editingUser.firstName?.[0] ?? 'E'}
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold text-white block truncate">{editingUser.firstName} {editingUser.lastName}</span>
+                <span className="text-[8px] text-slate-500 block truncate">ID: {editingUser.telegramId}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {/* Points */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[8px] text-slate-500 font-bold uppercase tracking-wider pl-1">EForce Points</label>
+                <input
+                  type="number"
+                  value={editPoints}
+                  onChange={(e) => setEditPoints(Number(e.target.value))}
+                  className="bg-[#12182D] border border-white/8 text-slate-300 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:border-accent-cyan outline-none"
+                />
+              </div>
+
+              {/* Wallet */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[8px] text-slate-500 font-bold uppercase tracking-wider pl-1">USDT Balance ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editWallet}
+                  onChange={(e) => setEditWallet(Number(e.target.value))}
+                  className="bg-[#12182D] border border-white/8 text-slate-300 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:border-accent-cyan outline-none"
+                />
+              </div>
+
+              {/* Referrals */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[8px] text-slate-500 font-bold uppercase tracking-wider pl-1">Referral Count</label>
+                <input
+                  type="number"
+                  value={editReferrals}
+                  onChange={(e) => setEditReferrals(Number(e.target.value))}
+                  className="bg-[#12182D] border border-white/8 text-slate-300 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:border-accent-cyan outline-none"
+                />
+              </div>
+
+              {/* Risk Level */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[8px] text-slate-500 font-bold uppercase tracking-wider pl-1">Security Risk Status</label>
+                <select
+                  value={editRiskLevel}
+                  onChange={(e) => setEditRiskLevel(e.target.value as any)}
+                  className="bg-[#12182D] border border-white/8 text-slate-300 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:border-accent-cyan outline-none cursor-pointer"
+                >
+                  <option value="safe">🟢 Safe</option>
+                  <option value="medium">🟡 Medium Risk</option>
+                  <option value="high">🔴 High Risk / Flagged</option>
+                </select>
+              </div>
+
+              {/* Submit */}
+              <button
+                onClick={handleSaveUser}
+                disabled={savingUser}
+                className="w-full h-9 bg-gradient-to-r from-accent-cyan to-accent-blue hover:shadow-[0_0_15px_rgba(0,229,255,0.2)] text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1 mt-2 cursor-pointer disabled:opacity-50"
+              >
+                {savingUser ? (
+                  <span className="w-3.5 h-3.5 border-2 border-t-transparent border-white rounded-full animate-spin"></span>
+                ) : (
+                  <>
+                    <Save size={12} />
+                    <span>Save Parameters</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

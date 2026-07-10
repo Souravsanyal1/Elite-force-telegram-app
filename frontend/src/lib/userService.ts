@@ -12,6 +12,7 @@ import {
   query,
   where,
   getCountFromServer,
+  getDocs,
 } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebase';
 import type { TelegramUser } from './telegramUser';
@@ -156,3 +157,38 @@ export const updateRiskLevel = async (
     await updateDoc(userRef, { riskLevel });
   } catch { /* noop */ }
 };
+
+/**
+ * Admin: Fetches all registered users from Firestore.
+ */
+export const getAllUsers = async (): Promise<FirestoreUser[]> => {
+  if (!isFirebaseConfigured()) return [];
+  try {
+    const querySnapshot = await getDocs(collection(db, USERS_COLLECTION));
+    const users: FirestoreUser[] = [];
+    querySnapshot.forEach((docSnap) => {
+      users.push(docSnap.data() as FirestoreUser);
+    });
+    return users;
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Admin: Directly updates any user's fields in Firestore.
+ */
+export const updateUserDatabaseValues = async (
+  telegramId: number,
+  updates: { points?: number; wallet?: number; referrals?: number; riskLevel?: 'safe' | 'medium' | 'high' }
+): Promise<boolean> => {
+  if (!isFirebaseConfigured()) return false;
+  const userRef = doc(db, USERS_COLLECTION, String(telegramId));
+  try {
+    await updateDoc(userRef, updates);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
