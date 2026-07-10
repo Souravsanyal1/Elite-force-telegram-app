@@ -9,15 +9,15 @@ export const Profile = ({ efcBalance, showToast }: ProfileProps) => {
   const userAddress = "UQCs0E5F...eYhBk7dSg";
 
   const handleCopyAddress = () => {
-    navigator.clipboard.writeText("UQCs0E5F_AAF4E9ez9k5vTfeYhBk7dSg_EFC_Custody");
+    navigator.clipboard.writeText("UQCs0E5F_AAF4E9ez9k5vTfeYhBk7dSg_EForce_Custody");
     showToast("Wallet address copied to clipboard!", "success");
   };
 
   const achievements = [
-    { name: "First Mine", desc: "Mined EFC coin for the first time", completed: true, badgeColor: "text-accent-cyan" },
+    { name: "First Mine", desc: "Mined EForce coin for the first time", completed: true, badgeColor: "text-accent-cyan" },
     { name: "Affiliate Recruit", desc: "Invited 5 active members to the force", completed: true, badgeColor: "text-accent-purple" },
     { name: "Node Authorizer", desc: "Unlocked cryptocurrency withdrawal gateway", completed: false, badgeColor: "text-slate-500" },
-    { name: "Grandmaster Miner", desc: "Accumulated more than 10,000 EFC", completed: efcBalance >= 10000, badgeColor: efcBalance >= 10000 ? "text-accent-gold" : "text-slate-500" },
+    { name: "Grandmaster Miner", desc: "Accumulated more than 10,000 EForce", completed: efcBalance >= 10000, badgeColor: efcBalance >= 10000 ? "text-accent-gold" : "text-slate-500" },
   ];
 
   return (

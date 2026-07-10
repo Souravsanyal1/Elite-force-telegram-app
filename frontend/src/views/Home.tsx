@@ -54,7 +54,7 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
     setEfcBalance(prev => prev + reward);
     setDailyClaimed(true);
     setDailyStreak(prev => prev + 1);
-    showToast(`Claimed daily check-in: +${reward} EFC!`, 'success');
+    showToast(`Claimed daily check-in: +${reward} EForce!`, 'success');
 
     // Trigger premium confetti
     confetti({
@@ -96,7 +96,7 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
           <span className="text-4xl font-extrabold tracking-tight text-white font-display">
             {efcBalance.toLocaleString()}
           </span>
-          <span className="text-sm font-bold text-accent-cyan tracking-wider">EFC</span>
+          <span className="text-sm font-bold text-accent-cyan tracking-wider">EForce</span>
         </div>
 
         <div className="w-full h-[1px] bg-white/5 mb-4"></div>
@@ -111,7 +111,7 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
           </div>
           <div className="w-[1px] bg-white/5"></div>
           <div className="flex-1">
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest block mb-0.5">Est. EFC Value</span>
+            <span className="text-[10px] text-slate-500 uppercase tracking-widest block mb-0.5">Est. EForce Value</span>
             <span className="text-xs font-semibold text-slate-300">
               ${(efcBalance * 0.0015).toFixed(2)} USD
             </span>
@@ -121,7 +121,7 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
 
       {/* Hero 3D Coin Section */}
       <div className="flex flex-col items-center my-2 select-none relative">
-        <span className="text-[11px] text-slate-400 mb-3 tracking-widest uppercase font-medium">Tap to Mine EFC</span>
+        <span className="text-[11px] text-slate-400 mb-3 tracking-widest uppercase font-medium">Tap to Mine EForce</span>
         
         <div
           onClick={handleCoinClick}
@@ -151,13 +151,16 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
 
             {/* Back Coin Face (visible during spin) */}
             <div 
-              className="absolute inset-0 rounded-full bg-gradient-to-bl from-[#0E1225] via-[#1A2342] to-[#2B3A67] border-2 border-accent-purple/40 flex items-center justify-center"
+              className="absolute inset-0 rounded-full flex items-center justify-center overflow-hidden"
               style={{ transform: 'rotateY(180deg)', backfaceVisibility: 'hidden' }}
             >
-              <div className="w-[90%] h-[90%] rounded-full border border-accent-purple/20 bg-gradient-to-br from-[#12182D]/40 to-[#0A0D1A]/80 flex flex-col items-center justify-center relative">
-                <span className="text-2xl font-black text-accent-purple drop-shadow-[0_0_8px_rgba(179,136,255,0.4)]">EFC</span>
-                <span className="text-[7px] text-slate-500 font-bold tracking-widest mt-1">BLOCKCHAIN v2.0</span>
-              </div>
+              <img 
+                src="/coin-logo.jpg" 
+                alt="Elite Force Coin" 
+                className="w-full h-full object-cover rounded-full select-none pointer-events-none"
+                draggable={false}
+              />
+              <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-gradient-to-tr from-transparent via-white/8 to-transparent rotate-45 pointer-events-none"></div>
             </div>
           </motion.div>
 
@@ -172,7 +175,7 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
                 transition={{ duration: 0.8, ease: 'easeOut' }}
                 className="absolute text-xl font-black text-accent-cyan drop-shadow-[0_2px_8px_rgba(0,229,255,0.5)] z-20 pointer-events-none select-none font-display"
               >
-                +1 EFC
+                +1 EForce
               </motion.span>
             ))}
           </AnimatePresence>
@@ -253,7 +256,7 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
         </div>
 
         <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
-          <span>Earn 10k EFC points</span>
+          <span>Earn 10k EForce points</span>
           <span className="flex items-center text-accent-cyan gap-0.5 cursor-pointer">
             View Tasks <ChevronRight size={12} />
           </span>
@@ -278,7 +281,7 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
         <div className="glass-panel p-3.5 rounded-[20px] text-center border-white/5 flex flex-col justify-center items-center">
           <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">Daily Mining</span>
           <span className="text-base font-bold text-accent-purple">+1.8K</span>
-          <span className="text-[8px] text-slate-400 mt-0.5">EFC / hr</span>
+          <span className="text-[8px] text-slate-400 mt-0.5">EForce / hr</span>
         </div>
       </div>
 

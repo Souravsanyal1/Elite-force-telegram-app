@@ -38,7 +38,7 @@ export const Tasks = ({ setEfcBalance, showToast }: TasksProps) => {
       setTasks(prev => prev.map(t => {
         if (t.id === taskId) {
           setEfcBalance(bal => bal + t.reward);
-          showToast(`Verified! Reward claimed: +${t.reward} EFC`, 'success');
+          showToast(`Verified! Reward claimed: +${t.reward} EForce`, 'success');
           return { ...t, status: 'completed' };
         }
         return t;
@@ -51,7 +51,7 @@ export const Tasks = ({ setEfcBalance, showToast }: TasksProps) => {
       {/* View Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-white">Missions</h1>
-        <p className="text-xs text-slate-400 mt-1">Complete tasks to verify eligibility & earn bonus EFC.</p>
+        <p className="text-xs text-slate-400 mt-1">Complete tasks to verify eligibility & earn bonus EForce.</p>
       </div>
 
       {/* Stats row */}
@@ -65,7 +65,7 @@ export const Tasks = ({ setEfcBalance, showToast }: TasksProps) => {
         <div className="glass-panel p-4 rounded-[20px] border-white/5">
           <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block mb-0.5">Total Claimable</span>
           <span className="text-lg font-bold text-accent-cyan">
-            {tasks.filter(t => t.status === 'idle').reduce((acc, t) => acc + t.reward, 0).toLocaleString()} <span className="text-xs font-normal text-slate-500">EFC</span>
+            {tasks.filter(t => t.status === 'idle').reduce((acc, t) => acc + t.reward, 0).toLocaleString()} <span className="text-xs font-normal text-slate-500">EForce</span>
           </span>
         </div>
       </div>
@@ -97,7 +97,7 @@ export const Tasks = ({ setEfcBalance, showToast }: TasksProps) => {
                   <div>
                     <h4 className="text-sm font-semibold text-white tracking-wide">{task.title}</h4>
                     <span className="text-[11px] font-bold text-accent-purple mt-0.5 block">
-                      +{task.reward} EFC
+                      +{task.reward} EForce
                     </span>
                   </div>
                 </div>
@@ -146,7 +146,7 @@ export const Tasks = ({ setEfcBalance, showToast }: TasksProps) => {
         <div className="flex flex-col gap-0.5">
           <h5 className="text-xs font-bold text-slate-300">Fraud Prevention System</h5>
           <p className="text-[10px] text-slate-400 leading-normal">
-            Our automated security node cross-checks channels. If you leave a group or undo social follows after claiming, EFC credits will be rolled back automatically.
+            Our automated security node cross-checks channels. If you leave a group or undo social follows after claiming, EForce credits will be rolled back automatically.
           </p>
         </div>
       </div>

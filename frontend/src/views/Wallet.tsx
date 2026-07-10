@@ -16,7 +16,7 @@ interface Transaction {
   id: string;
   type: 'deposit' | 'withdraw' | 'reward';
   amount: string;
-  asset: 'EFC' | 'USDT';
+  asset: 'EForce' | 'USDT';
   status: 'completed' | 'pending';
   date: string;
 }
@@ -37,10 +37,10 @@ export const Wallet: React.FC<WalletProps> = ({
   const [withdrawAmount, setWithdrawAmount] = useState('10.0');
 
   const [transactions, setTransactions] = useState<Transaction[]>([
-    { id: '1', type: 'reward', amount: '250', asset: 'EFC', status: 'completed', date: 'Today, 14:23' },
-    { id: '2', type: 'reward', amount: '1,000', asset: 'EFC', status: 'completed', date: 'Yesterday, 18:05' },
+    { id: '1', type: 'reward', amount: '250', asset: 'EForce', status: 'completed', date: 'Today, 14:23' },
+    { id: '2', type: 'reward', amount: '1,000', asset: 'EForce', status: 'completed', date: 'Yesterday, 18:05' },
     { id: '3', type: 'deposit', amount: '25.0', asset: 'USDT', status: 'completed', date: '08 Jul, 11:40' },
-    { id: '4', type: 'reward', amount: '5,000', asset: 'EFC', status: 'completed', date: '05 Jul, 09:12' },
+    { id: '4', type: 'reward', amount: '5,000', asset: 'EForce', status: 'completed', date: '05 Jul, 09:12' },
   ]);
 
   const handleWithdrawClick = () => {
@@ -66,7 +66,7 @@ export const Wallet: React.FC<WalletProps> = ({
         setIsVerifying(false);
         setIsSuccess(true);
         setUsdtBalance(prev => prev - parseFloat(withdrawAmount));
-        setEfcBalance(prev => prev - (parseFloat(withdrawAmount) * 600)); // convert EFC
+        setEfcBalance(prev => prev - (parseFloat(withdrawAmount) * 600)); // convert EForce
         
         // Add transaction
         setTransactions(prev => [
@@ -139,13 +139,13 @@ export const Wallet: React.FC<WalletProps> = ({
 
         <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
           <div>
-            <span className="text-[9px] text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">EFC Balance</span>
+            <span className="text-[9px] text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">EForce Balance</span>
             <span className="text-sm font-extrabold text-white font-display">{efcBalance.toLocaleString()}</span>
           </div>
           <div>
             <span className="text-[9px] text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">Pending Claim</span>
             <span className="text-sm font-semibold text-accent-purple flex items-center gap-1 font-display">
-              <Clock size={11} /> 1,250 EFC
+              <Clock size={11} /> 1,250 EForce
             </span>
           </div>
         </div>
@@ -238,7 +238,7 @@ export const Wallet: React.FC<WalletProps> = ({
 
               <h3 className="text-base font-bold text-white mb-2">Milestone Required</h3>
               <p className="text-xs text-slate-400 leading-relaxed mb-5">
-                To prevent Sybil attacks and unlock general cryptocurrency withdrawals, you must recruit at least <span className="text-accent-purple font-bold">10 affiliates</span> to EFC.
+                To prevent Sybil attacks and unlock general cryptocurrency withdrawals, you must recruit at least <span className="text-accent-purple font-bold">10 affiliates</span> to EForce.
               </p>
 
               <div className="flex flex-col gap-2">

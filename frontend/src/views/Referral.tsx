@@ -30,8 +30,8 @@ export const Referral: React.FC<ReferralProps> = ({
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: 'Elite Force (EFC)',
-        text: 'Join Elite Force Web3 platform and mine EFC coins!',
+        title: 'Elite Force (EForce)',
+        text: 'Join Elite Force Web3 platform and mine EForce coins!',
         url: referralLink,
       }).catch(err => console.log(err));
     } else {
@@ -50,11 +50,11 @@ export const Referral: React.FC<ReferralProps> = ({
     
     // Add point rewards for new referral
     setEfcBalance(bal => bal + 1000);
-    showToast("New friend joined! Received +1000 EFC!", "success");
+    showToast("New friend joined! Received +1000 EForce!", "success");
 
     if (nextCount === 10) {
       setHasUnlockedWithdrawal(true);
-      showToast("Milestone achieved! EFC Withdrawal feature UNLOCKED!", "success");
+      showToast("Milestone achieved! EForce Withdrawal feature UNLOCKED!", "success");
       
       // Luxury confetti explosion
       const duration = 3 * 1000;
@@ -107,7 +107,7 @@ export const Referral: React.FC<ReferralProps> = ({
             Double Reward
           </h2>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            Get <span className="text-accent-cyan font-semibold">1,000 EFC</span> for every registered user. Premium Telegram contacts grant you <span className="text-accent-purple font-semibold">5,000 EFC</span>.
+            Get <span className="text-accent-cyan font-semibold">1,000 EForce</span> for every registered user. Premium Telegram contacts grant you <span className="text-accent-purple font-semibold">5,000 EForce</span>.
           </p>
         </div>
 
@@ -242,7 +242,7 @@ export const Referral: React.FC<ReferralProps> = ({
         </h4>
         <ul className="text-[10px] text-slate-400 list-disc list-inside leading-relaxed flex flex-col gap-1">
           <li>10 registered affiliates required to unlock general cryptocurrency withdrawals.</li>
-          <li>Top 100 referrers receive a share of the 1,000,000 EFC weekly bonus pool.</li>
+          <li>Top 100 referrers receive a share of the 1,000,000 EForce weekly bonus pool.</li>
           <li>Invites are verified using automated anti-bot Telegram checks.</li>
         </ul>
       </div>
