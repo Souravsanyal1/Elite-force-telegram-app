@@ -58,6 +58,9 @@ export const Profile = ({ efcBalance, connectedAddress, showToast }: ProfileProp
             <div className="p-0.5 rounded bg-accent-cyan/10 border border-accent-cyan/20 text-accent-cyan flex items-center justify-center" title="Verified User">
               <ShieldCheck size={11} className="stroke-[2.5]" />
             </div>
+            <span className="text-[8px] font-black uppercase text-accent-gold flex items-center gap-0.5 bg-accent-gold/10 border border-accent-gold/15 px-1.5 py-0.5 rounded">
+              👑 Premium
+            </span>
           </div>
           <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-medium">Node Member #89741</span>
         </div>

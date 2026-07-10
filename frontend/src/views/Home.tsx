@@ -163,8 +163,12 @@ export const Home: React.FC<HomeProps> = ({
             <span className="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse"></span>
             Elite Member
           </h2>
-          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-1.5">
             Hello Sourav <span className="animate-bounce origin-bottom">👋</span>
+            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-gradient-to-r from-accent-purple via-accent-cyan to-accent-blue text-white shadow-[0_0_15px_rgba(0,229,255,0.4)] relative overflow-hidden group">
+              <span className="absolute inset-0 w-full h-full bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+              👑 Premium
+            </span>
           </h1>
         </div>
 

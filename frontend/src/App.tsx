@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, CheckCircle, Info, ShieldAlert, Award } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, ShieldAlert, Award, Smartphone, Lock } from 'lucide-react';
 import { ActiveTab, Navigation } from './components/Navigation';
 import { Home } from './views/Home';
 import { Tasks } from './views/Tasks';
@@ -9,11 +9,22 @@ import { Wallet } from './views/Wallet';
 import { Profile } from './views/Profile';
 import { Settings } from './views/Settings';
 import { Admin } from './views/Admin';
+import { AdminLogin } from './views/AdminLogin';
 
 interface Toast {
   id: number;
   message: string;
   type: 'success' | 'error' | 'warning' | 'info';
+}
+
+interface DeviceDetails {
+  platform: string;
+  browser: string;
+  os: string;
+  resolution: string;
+  language: string;
+  timezone: string;
+  userAgent: string;
 }
 
 export default function App() {
@@ -31,7 +42,7 @@ export default function App() {
     }
   };
 
-  // State Declarations with Persisted Fallbacks
+  // State Declarations
   const [efcBalance, setEfcBalance] = useState<number>(() => getPersisted('efcBalance', 4820));
   const [eforceTokens, setEforceTokens] = useState<number>(() => getPersisted('eforceTokens', 0));
   const [usdtBalance, setUsdtBalance] = useState<number>(() => getPersisted('usdtBalance', 38.50));
@@ -62,18 +73,77 @@ export default function App() {
     { id: '1089', user: 'vip_holder_9', amount: 50.0, status: 'Approved', date: '3 hours ago' },
   ]));
 
-  // Generate random background particles
-  const [bgParticles] = useState(() => 
-    Array.from({ length: 12 }).map((_, i) => ({
-      id: i,
-      left: `${Math.random() * 100}%`,
-      delay: `${Math.random() * 8}s`,
-      duration: `${12 + Math.random() * 8}s`,
-      size: `${2 + Math.random() * 4}px`,
-    }))
-  );
-
+  // Route and Auth parameters
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => getPersisted('isAdminAuthenticated', false));
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Telegram environment parameters
+  const [isTelegramWebview, setIsTelegramWebview] = useState(false);
+  const [bypassTelegramCheck, setBypassTelegramCheck] = useState(() => getPersisted('bypassTelegramCheck', false));
+
+  // Dynamic live stats for Admin Panel
+  const [liveUserCount, setLiveUserCount] = useState(15842);
+
+  // Device Info parameters
+  const [deviceInfo, setDeviceInfo] = useState<DeviceDetails>({
+    platform: 'Unknown',
+    browser: 'Unknown',
+    os: 'Unknown',
+    resolution: 'Unknown',
+    language: 'en',
+    timezone: 'UTC',
+    userAgent: ''
+  });
+
+  // Device & Telegram signature checks
+  useEffect(() => {
+    // Detect Telegram WebApp
+    const isTg = !!(window as any).Telegram?.WebApp?.initData || navigator.userAgent.includes('Telegram');
+    setIsTelegramWebview(isTg);
+
+    // Extract device metrics
+    const ua = navigator.userAgent;
+    let detectedOS = 'Unknown OS';
+    if (ua.includes('Windows')) detectedOS = 'Windows';
+    else if (ua.includes('Macintosh')) detectedOS = 'macOS';
+    else if (ua.includes('Android')) detectedOS = 'Android';
+    else if (ua.includes('iPhone') || ua.includes('iPad')) detectedOS = 'iOS';
+
+    let detectedBrowser = 'Unknown Browser';
+    if (ua.includes('Firefox')) detectedBrowser = 'Firefox';
+    else if (ua.includes('Chrome')) detectedBrowser = 'Chrome';
+    else if (ua.includes('Safari') && !ua.includes('Chrome')) detectedBrowser = 'Safari';
+    else if (ua.includes('Telegram')) detectedBrowser = 'Telegram WebView';
+
+    setDeviceInfo({
+      platform: navigator.platform || 'Web',
+      browser: detectedBrowser,
+      os: detectedOS,
+      resolution: `${window.screen.width}x${window.screen.height}`,
+      language: navigator.language || 'en',
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      userAgent: ua
+    });
+  }, []);
+
+  // Sync route path changes
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    // Overload pushState to react dynamically to route transitions
+    const originalPushState = window.history.pushState;
+    window.history.pushState = function(...args) {
+      originalPushState.apply(this, args);
+      setCurrentPath(window.location.pathname);
+    };
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.history.pushState = originalPushState;
+    };
+  }, []);
 
   // Auto-persist updates
   useEffect(() => {
@@ -112,19 +182,28 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('withdrawRequests', JSON.stringify(withdrawRequests));
   }, [withdrawRequests]);
+  useEffect(() => {
+    localStorage.setItem('isAdminAuthenticated', JSON.stringify(isAdminAuthenticated));
+  }, [isAdminAuthenticated]);
+  useEffect(() => {
+    localStorage.setItem('bypassTelegramCheck', JSON.stringify(bypassTelegramCheck));
+  }, [bypassTelegramCheck]);
 
-  // Energy Regeneration Loop (+3 energy per second)
+  // Energy & Presence Loops
   useEffect(() => {
     const interval = setInterval(() => {
+      // Energy regeneration (+3/sec)
       setEnergy(prev => {
         if (prev >= maxEnergy) return maxEnergy;
         return Math.min(prev + 3, maxEnergy);
       });
+      // Fluctuate active user presence counts (+/- 3 users)
+      setLiveUserCount(prev => prev + (Math.random() > 0.5 ? 2 : -2));
     }, 1000);
     return () => clearInterval(interval);
   }, [maxEnergy]);
 
-  // Preloader
+  // Preloader animation
   useEffect(() => {
     const timer = setTimeout(() => {
       setLoading(false);
@@ -139,6 +218,29 @@ export default function App() {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 3000);
   };
+
+  const handleAdminLoginSuccess = () => {
+    setIsAdminAuthenticated(true);
+    // Route transition to /admin
+    window.history.pushState({}, '', '/admin');
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdminAuthenticated(false);
+    window.history.pushState({}, '', '/admin-login');
+    showToast("Logged out of Admin console.", "info");
+  };
+
+  // Generate random background particles
+  const [bgParticles] = useState(() => 
+    Array.from({ length: 12 }).map((_, i) => ({
+      id: i,
+      left: `${Math.random() * 100}%`,
+      delay: `${Math.random() * 8}s`,
+      duration: `${12 + Math.random() * 8}s`,
+      size: `${2 + Math.random() * 4}px`,
+    }))
+  );
 
   const renderActiveView = () => {
     switch (activeTab) {
@@ -207,23 +309,142 @@ export default function App() {
         );
       case 'settings':
         return <Settings showToast={showToast} />;
-      case 'admin':
-        return (
-          <Admin 
-            swapOpen={swapOpen}
-            setSwapOpen={setSwapOpen}
-            swapRate={swapRate}
-            setSwapRate={setSwapRate}
-            tokenSale={tokenSale}
-            setTokenSale={setTokenSale}
-            withdrawRequests={withdrawRequests}
-            setWithdrawRequests={setWithdrawRequests}
-            showToast={showToast} 
-          />
-        );
       default:
         return null;
     }
+  };
+
+  // Determine routing view
+  const renderRoutedPage = () => {
+    if (currentPath === '/admin-login') {
+      return (
+        <AdminLogin 
+          onLoginSuccess={handleAdminLoginSuccess} 
+          showToast={showToast} 
+        />
+      );
+    }
+
+    if (currentPath === '/admin') {
+      if (!isAdminAuthenticated) {
+        // Protected redirect
+        return (
+          <div className="flex flex-col items-center justify-center p-6 text-center min-h-[50vh]">
+            <Lock size={36} className="text-accent-danger mb-4 animate-bounce" />
+            <h2 className="text-lg font-black text-white uppercase mb-2">Access Denied</h2>
+            <p className="text-xs text-slate-400 max-w-[280px] leading-relaxed mb-6">
+              You must authenticate with verified Admin credentials to open the console dashboard.
+            </p>
+            <button
+              onClick={() => window.history.pushState({}, '', '/admin-login')}
+              className="h-10 px-6 rounded-xl bg-gradient-to-r from-accent-purple to-accent-blue text-white text-xs font-bold shadow hover:shadow-lg transition-all cursor-pointer"
+            >
+              Sign In Page
+            </button>
+          </div>
+        );
+      }
+      return (
+        <div className="flex flex-col gap-4">
+          <div className="flex justify-between items-center px-5 pt-6">
+            <span className="text-[10px] font-black text-accent-cyan uppercase tracking-widest bg-accent-cyan/10 border border-accent-cyan/15 px-3 py-1 rounded-full">
+              Console Session
+            </span>
+            <button 
+              onClick={handleAdminLogout}
+              className="text-[10px] font-bold text-accent-danger border border-accent-danger/25 bg-accent-danger/5 hover:bg-accent-danger/15 px-3 py-1 rounded-full transition-all cursor-pointer"
+            >
+              Sign Out
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 pb-10">
+            <Admin 
+              swapOpen={swapOpen}
+              setSwapOpen={setSwapOpen}
+              swapRate={swapRate}
+              setSwapRate={setSwapRate}
+              tokenSale={tokenSale}
+              setTokenSale={setTokenSale}
+              withdrawRequests={withdrawRequests}
+              setWithdrawRequests={setWithdrawRequests}
+              showToast={showToast} 
+              liveUserCount={liveUserCount}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // Default Main User Route "/"
+    // 1. Telegram webview checks
+    if (!isTelegramWebview && !bypassTelegramCheck) {
+      return (
+        <div className="flex flex-col items-center justify-center p-8 text-center min-h-[60vh] select-none">
+          <ShieldAlert size={46} className="text-accent-danger mb-4 animate-pulse" />
+          <h2 className="text-xl font-black text-white tracking-wide uppercase mb-2">Access Denied</h2>
+          <p className="text-xs text-slate-400 max-w-[280px] leading-relaxed mb-6">
+            This premium application can only be opened from the official Telegram WebApp client.
+          </p>
+          <div className="w-full h-[1px] bg-white/5 my-4" />
+          
+          {/* Dev Mode Simulator Panel */}
+          <div className="glass-panel p-4 rounded-2xl border-white/5 w-full max-w-[300px]">
+            <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black block mb-1">Developer Testing Console</span>
+            <span className="text-[10px] text-slate-400 block mb-3">Simulate client environments locally</span>
+            <button
+              onClick={() => {
+                setBypassTelegramCheck(true);
+                showToast("Simulating Telegram WebApp session.", "success");
+              }}
+              className="w-full h-9 rounded-xl bg-white/5 border border-white/8 hover:bg-white/10 text-white text-[10px] font-bold transition-all cursor-pointer"
+            >
+              Launch Simulator (Bypass Check)
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Render client dashboard layout
+    return (
+      <div className="w-full h-full relative flex flex-col overflow-hidden">
+        
+        {/* Device metadata indicator header */}
+        <div className="flex justify-between items-center px-5 pt-3.5 pb-2 text-[9px] text-slate-500 font-bold uppercase tracking-wider bg-white/[0.01] border-b border-white/5 z-20">
+          <div className="flex items-center gap-1">
+            <Smartphone size={10} className="text-slate-500" />
+            <span>{deviceInfo.os} ({deviceInfo.browser})</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent-success animate-ping"></span>
+            <span>Live node active</span>
+          </div>
+        </div>
+
+        {/* Dynamic content scroll area */}
+        <div className="flex-1 overflow-y-auto px-5 pt-4 pb-20 custom-scrollbar relative z-10">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 8, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.99 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              className="h-full"
+            >
+              {renderActiveView()}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        {/* Floating Navigation */}
+        <Navigation 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab} 
+          isAdmin={true} 
+        />
+      </div>
+    );
   };
 
   return (
@@ -318,14 +539,12 @@ export default function App() {
                   transition={{ type: 'spring', stiffness: 350, damping: 25 }}
                   className="glass-panel px-4 py-3 rounded-2xl flex items-center gap-3 shadow-[0_12px_30px_rgba(0,0,0,0.3)] border-white/8 relative overflow-hidden"
                 >
-                  {/* Decorative glowing back bar */}
                   <div className={`absolute left-0 top-0 bottom-0 w-1 ${
                     toast.type === 'success' ? 'bg-accent-success' :
                     toast.type === 'error' ? 'bg-accent-danger' :
                     toast.type === 'warning' ? 'bg-accent-warning' : 'bg-accent-cyan'
                   }`} />
                   
-                  {/* Toast Icon */}
                   <div className={`shrink-0 ${
                     toast.type === 'success' ? 'text-accent-success' :
                     toast.type === 'error' ? 'text-accent-danger' :
@@ -337,7 +556,6 @@ export default function App() {
                     {toast.type === 'info' && <Info size={16} />}
                   </div>
 
-                  {/* Message */}
                   <span className="text-xs font-semibold text-slate-200 tracking-wide">
                     {toast.message}
                   </span>
@@ -346,28 +564,8 @@ export default function App() {
             </AnimatePresence>
           </div>
 
-          {/* View Scrollable Frame */}
-          <div className="flex-1 overflow-y-auto px-5 pt-10 pb-20 custom-scrollbar relative z-10">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 8, scale: 0.99 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.99 }}
-                transition={{ duration: 0.22, ease: 'easeOut' }}
-                className="h-full pt-4"
-              >
-                {renderActiveView()}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-
-          {/* Bottom Floating Navigation */}
-          <Navigation 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab} 
-            isAdmin={true} 
-          />
+          {/* Render routed content */}
+          {renderRoutedPage()}
 
         </div>
       )}

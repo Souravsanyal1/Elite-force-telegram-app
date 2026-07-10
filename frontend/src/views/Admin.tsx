@@ -20,6 +20,7 @@ interface AdminProps {
   withdrawRequests: Array<{ id: string; user: string; amount: number; status: 'Pending' | 'Approved' | 'Rejected' | 'Banned'; date: string }>;
   setWithdrawRequests: React.Dispatch<React.SetStateAction<any[]>>;
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
+  liveUserCount: number;
 }
 
 export const Admin: React.FC<AdminProps> = ({ 
@@ -31,7 +32,8 @@ export const Admin: React.FC<AdminProps> = ({
   setTokenSale,
   withdrawRequests,
   setWithdrawRequests,
-  showToast 
+  showToast,
+  liveUserCount
 }) => {
   const [search, setSearch] = useState('');
 
@@ -90,8 +92,8 @@ export const Admin: React.FC<AdminProps> = ({
             <span className="text-[9px] uppercase font-bold tracking-wider">Online Nodes</span>
             <span className="w-2 h-2 rounded-full bg-accent-success animate-pulse"></span>
           </div>
-          <span className="text-lg font-black text-accent-cyan font-display">15,842</span>
-          <span className="text-[9px] text-slate-500 font-semibold">Active TON listeners</span>
+          <span className="text-lg font-black text-accent-cyan font-display">{liveUserCount.toLocaleString()}</span>
+          <span className="text-[9px] text-slate-500 font-semibold">Active Telegram listeners</span>
         </div>
       </div>
 
