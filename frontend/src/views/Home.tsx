@@ -138,43 +138,15 @@ export const Home: React.FC<HomeProps> = ({ efcBalance, setEfcBalance, usdtBalan
             style={{ transformStyle: 'preserve-3d' }}
           >
             {/* Front Coin Face */}
-            <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#0E1225] via-[#1A2342] to-[#2B3A67] border-2 border-accent-cyan/40 flex items-center justify-center shadow-inner">
-              {/* Inner metallic gold texture and border */}
-              <div className="w-[90%] h-[90%] rounded-full border border-accent-gold/25 bg-gradient-to-br from-[#12182D]/40 to-[#0A0D1A]/80 flex flex-col items-center justify-center relative overflow-hidden">
-                {/* Gloss Reflection lines */}
-                <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-gradient-to-tr from-transparent via-white/5 to-transparent rotate-45 pointer-events-none"></div>
-                
-                {/* Main Logo icon */}
-                <svg width="64" height="64" viewBox="0 0 100 100" className="drop-shadow-[0_0_12px_rgba(0,229,255,0.4)]">
-                  <defs>
-                    <linearGradient id="efcGold" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#FFD700" />
-                      <stop offset="50%" stopColor="#FF8A00" />
-                      <stop offset="100%" stopColor="#FFD700" />
-                    </linearGradient>
-                    <linearGradient id="efcCyan" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#00E5FF" />
-                      <stop offset="100%" stopColor="#4D8CFF" />
-                    </linearGradient>
-                  </defs>
-                  
-                  {/* Outer hex outline */}
-                  <polygon points="50,5 88,27 88,73 50,95 12,73 12,27" fill="none" stroke="url(#efcCyan)" strokeWidth="3" />
-                  
-                  {/* Inner wings/shield */}
-                  <path d="M50 20 L75 35 L75 65 L50 80 L25 65 L25 35 Z" fill="url(#efcGold)" opacity="0.15" />
-                  
-                  {/* Elite Force Shield & Symbol */}
-                  <polygon points="50,22 70,35 70,65 50,78 30,65 30,35" fill="none" stroke="url(#efcGold)" strokeWidth="4" />
-                  
-                  {/* Center Star / Arrow */}
-                  <polygon points="50,30 55,43 68,45 58,54 61,68 50,60 39,68 42,54 32,45 45,43" fill="url(#efcGold)" />
-                </svg>
-                
-                <span className="text-[9px] font-extrabold text-accent-cyan tracking-[0.25em] uppercase mt-2 select-none">
-                  ELITE FORCE
-                </span>
-              </div>
+            <div className="absolute inset-0 rounded-full flex items-center justify-center overflow-hidden">
+              <img 
+                src="/coin-logo.jpg" 
+                alt="Elite Force Coin" 
+                className="w-full h-full object-cover rounded-full select-none pointer-events-none"
+                draggable={false}
+              />
+              {/* Gloss Reflection overlay */}
+              <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-gradient-to-tr from-transparent via-white/8 to-transparent rotate-45 pointer-events-none"></div>
             </div>
 
             {/* Back Coin Face (visible during spin) */}
