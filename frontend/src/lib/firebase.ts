@@ -1,10 +1,9 @@
-// Firebase SDK initialization
-// Fill in your Firebase config in frontend/.env.local
-
+// Firebase SDK initialization — Elite Force (EForce)
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getDatabase } from 'firebase/database';
+import { getAnalytics, isSupported } from 'firebase/analytics';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -14,6 +13,7 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 // Prevent duplicate app initialization in hot-reload environments
@@ -22,9 +22,15 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const rtdb = getDatabase(app);
+
+// Analytics — only in browser environments that support it
+isSupported().then((supported) => {
+  if (supported) getAnalytics(app);
+}).catch(() => {});
+
 export default app;
 
-// Check if Firebase is properly configured
+// Check if Firebase is properly configured (not placeholder values)
 export const isFirebaseConfigured = (): boolean => {
   return !!(
     import.meta.env.VITE_FIREBASE_API_KEY &&
