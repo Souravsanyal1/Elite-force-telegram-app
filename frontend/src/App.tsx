@@ -394,6 +394,20 @@ export default function App() {
 
   // Determine routing view
   const renderRoutedPage = () => {
+    // Block admin routes inside Telegram WebView
+    const isAdminPath = currentPath === '/admin-login' || currentPath === '/admin';
+    if (isAdminPath && isTelegramWebview) {
+      return (
+        <div className="flex flex-col items-center justify-center p-8 text-center min-h-[60vh] select-none">
+          <ShieldAlert size={46} className="text-accent-danger mb-4 animate-pulse" />
+          <h2 className="text-xl font-black text-white tracking-wide uppercase mb-2">Access Denied</h2>
+          <p className="text-xs text-slate-400 max-w-[280px] leading-relaxed mb-6">
+            The Admin Console cannot be accessed inside the Telegram client. Please open this URL from a secure external web browser.
+          </p>
+        </div>
+      );
+    }
+
     if (currentPath === '/admin-login') {
       return (
         <AdminLogin 
