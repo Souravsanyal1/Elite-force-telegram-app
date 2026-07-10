@@ -326,8 +326,8 @@ export const Home: React.FC<HomeProps> = ({
           style={{ perspective: 800 }}
         >
           <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#FF8A00]/30 to-[#FF5500]/20 blur-2xl animate-pulse" />
-          <div className="relative w-full h-full rounded-full overflow-hidden border-4 border-[#FFD700]/30 flex items-center justify-center shadow-[0_0_40px_rgba(255,138,0,0.4)] bg-black">
-            <img src="/coin.jpg" alt="EF Coin" className="w-full h-full object-cover select-none" />
+          <div className="relative w-full h-full rounded-full overflow-hidden border-4 border-[#FFD700]/30 flex items-center justify-center shadow-[0_0_40px_rgba(255,138,0,0.4)] bg-gradient-to-br from-[#1E2338] via-[#0E1225] to-[#050816]">
+            <img src="/coin.png" alt="EF Coin" className="w-full h-full object-contain select-none" />
           </div>
 
           {/* Floating click texts */}
