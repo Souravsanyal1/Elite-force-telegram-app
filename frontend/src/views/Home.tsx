@@ -4,6 +4,7 @@ import { Sparkles, Trophy, Flame, ChevronRight, Zap, X, Bolt } from 'lucide-reac
 import confetti from 'canvas-confetti';
 import { getShortName, getDisplayName, type TelegramUser } from '../lib/telegramUser';
 import { recordTap } from '../lib/antiCheat';
+import { getLeaderboardUsers, type FirestoreUser } from '../lib/userService';
 
 interface HomeProps {
   efcBalance: number;
@@ -60,6 +61,18 @@ export const Home: React.FC<HomeProps> = ({
     }, 1000);
     return () => clearInterval(interval);
   }, [autoTapActive, setEfcBalance]);
+
+  // Firestore Leaderboard State
+  const [dbUsers, setDbUsers] = useState<FirestoreUser[]>([]);
+
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      const topUsers = await getLeaderboardUsers(15);
+      setDbUsers(topUsers);
+    };
+    fetchLeaderboard();
+  }, [efcBalance]); // re-fetch when local points change to keep it real-time
+
 
   // Click handler with anti-cheat
   const handleCoinClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -145,28 +158,49 @@ export const Home: React.FC<HomeProps> = ({
     });
   };
 
-  // Mock leaderboard users
-  const tapLeaderboardData = [
-    { rank: 1, name: 'ton_whale_99', points: 984500, referrals: 245, premium: true },
-    { rank: 2, name: 'ether_king', points: 843200, referrals: 189, premium: false },
-    { rank: 3, name: 'crypto_champ', points: 721900, referrals: 154, premium: true },
-    { rank: 4, name: 'Sourav Sanyal (You)', points: efcBalance, referrals: referralsCount, premium: true },
-    { rank: 5, name: 'sol_sniper', points: 412500, referrals: 92, premium: false },
-    { rank: 6, name: 'duck_miner', points: 389400, referrals: 81, premium: false },
-  ];
+  // Dynamic leaderboard users mapping from Firestore
+  const tapLeaderboardData = dbUsers.length > 0 
+    ? dbUsers.map((u, idx) => ({
+        rank: idx + 1,
+        name: `${u.firstName} ${u.lastName}`.trim() || u.username || 'EForce Member',
+        points: u.points ?? 0,
+        referrals: u.referrals ?? 0,
+        premium: u.isTelegramPremium ?? false
+      }))
+    : [
+        { rank: 1, name: `${getDisplayName(telegramUser)} (You)`, points: efcBalance, referrals: referralsCount, premium: telegramUser?.isPremium ?? false }
+      ];
 
-  const referralLeaderboardData = [
-    { rank: 1, name: 'referral_god', points: 910000, referrals: 412, premium: true },
-    { rank: 2, name: 'ton_whale_99', points: 984500, referrals: 245, premium: true },
-    { rank: 3, name: 'ether_king', points: 843200, referrals: 189, premium: false },
-    { rank: 4, name: 'affiliate_pro', points: 512000, referrals: 110, premium: true },
-    { rank: 5, name: `${getDisplayName(telegramUser)} (You)`, points: efcBalance, referrals: referralsCount, premium: telegramUser?.isPremium ?? true },
-    { rank: 6, name: 'sol_sniper', points: 412500, referrals: 92, premium: false },
-  ];
+  const referralLeaderboardData = dbUsers.length > 0 
+    ? dbUsers.map((u, idx) => ({
+        rank: idx + 1,
+        name: `${u.firstName} ${u.lastName}`.trim() || u.username || 'EForce Member',
+        points: u.points ?? 0,
+        referrals: u.referrals ?? 0,
+        premium: u.isTelegramPremium ?? false
+      }))
+    : [
+        { rank: 1, name: `${getDisplayName(telegramUser)} (You)`, points: efcBalance, referrals: referralsCount, premium: telegramUser?.isPremium ?? false }
+      ];
+
+  // Append current user to local leaderboard array if they aren't already listed in top query results
+  const isCurrentUserInLeaderboard = dbUsers.some(u => u.telegramId === telegramUser?.id);
+  if (dbUsers.length > 0 && !isCurrentUserInLeaderboard && telegramUser) {
+    const userItem = {
+      rank: dbUsers.length + 1,
+      name: `${getDisplayName(telegramUser)} (You)`,
+      points: efcBalance,
+      referrals: referralsCount,
+      premium: telegramUser.isPremium
+    };
+    tapLeaderboardData.push(userItem);
+    referralLeaderboardData.push(userItem);
+  }
 
   const activeLeaderboard = leaderboardTab === 'tap' 
-    ? tapLeaderboardData.sort((a, b) => b.points - a.points)
-    : referralLeaderboardData.sort((a, b) => b.referrals - a.referrals);
+    ? [...tapLeaderboardData].sort((a, b) => b.points - a.points).map((item, idx) => ({ ...item, rank: idx + 1 }))
+    : [...referralLeaderboardData].sort((a, b) => b.referrals - a.referrals).map((item, idx) => ({ ...item, rank: idx + 1 }));
+
 
   return (
     <div className="flex flex-col gap-6 pb-28">

@@ -69,12 +69,8 @@ export default function App() {
   const [connectedAddress, setConnectedAddress] = useState<string | null>(() => getPersisted<string | null>('connectedAddress', null));
 
   // Shared requests ledger
-  const [withdrawRequests, setWithdrawRequests] = useState<{ id: string; user: string; amount: number; status: 'Pending' | 'Approved' | 'Rejected' | 'Banned'; date: string }[]>(() => getPersisted('withdrawRequests', [
-    { id: '1092', user: 'ton_miner_88', amount: 45.0, status: 'Pending', date: 'Just Now' },
-    { id: '1091', user: 'crypto_champ', amount: 15.0, status: 'Pending', date: '10 mins ago' },
-    { id: '1090', user: 'bot_spammer_32', amount: 120.0, status: 'Pending', date: '1 hour ago' },
-    { id: '1089', user: 'vip_holder_9', amount: 50.0, status: 'Approved', date: '3 hours ago' },
-  ]));
+  const [withdrawRequests, setWithdrawRequests] = useState<{ id: string; user: string; amount: number; status: 'Pending' | 'Approved' | 'Rejected' | 'Banned'; date: string }[]>(() => getPersisted('withdrawRequests', []));
+
 
   // Route and Auth parameters
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname);

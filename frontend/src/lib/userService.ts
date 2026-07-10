@@ -13,6 +13,8 @@ import {
   where,
   getCountFromServer,
   getDocs,
+  orderBy,
+  limit,
 } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebase';
 import type { TelegramUser } from './telegramUser';
@@ -191,4 +193,27 @@ export const updateUserDatabaseValues = async (
     return false;
   }
 };
+
+/**
+ * Fetches top users sorted by points for the leaderboard.
+ */
+export const getLeaderboardUsers = async (limitCount = 10): Promise<FirestoreUser[]> => {
+  if (!isFirebaseConfigured()) return [];
+  try {
+    const q = query(
+      collection(db, USERS_COLLECTION),
+      orderBy('points', 'desc'),
+      limit(limitCount)
+    );
+    const querySnapshot = await getDocs(q);
+    const users: FirestoreUser[] = [];
+    querySnapshot.forEach((docSnap) => {
+      users.push(docSnap.data() as FirestoreUser);
+    });
+    return users;
+  } catch {
+    return [];
+  }
+};
+
 
