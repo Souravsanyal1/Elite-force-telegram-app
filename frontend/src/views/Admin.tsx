@@ -693,10 +693,18 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
                       </div>
                     )}
                     {section.title.includes('Referral') && (
-                      <div className="flex items-center justify-between gap-4 py-2.5 border-t border-white/[0.04] mt-1.5">
-                        <label className="text-xs text-slate-400">Telegram Bot Username (Ref Links)</label>
-                        <input type="text" value={settings.botUsername} onChange={e => setSettings(prev => ({ ...prev, botUsername: e.target.value }))} className="w-40 h-8 rounded-lg px-3 text-xs text-white outline-none text-right transition-all" style={inputStyle} />
-                      </div>
+                      <>
+                        <div className="flex items-center justify-between py-2.5 border-t border-white/[0.04] mt-1.5">
+                          <label className="text-xs text-slate-400">Withdrawal Open</label>
+                          <button onClick={() => setSettings(prev => ({ ...prev, withdrawOpen: !prev.withdrawOpen }))} className={`w-11 h-6 rounded-full transition-all cursor-pointer relative ${settings.withdrawOpen ? 'bg-green-500' : 'bg-white/10'}`}>
+                            <div className="absolute top-[3px] bg-white rounded-full transition-all" style={{ width: 18, height: 18, left: settings.withdrawOpen ? 23 : 3 }} />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 py-2.5 border-t border-white/[0.04] mt-1.5">
+                          <label className="text-xs text-slate-400">Telegram Bot Username (Ref Links)</label>
+                          <input type="text" value={settings.botUsername} onChange={e => setSettings(prev => ({ ...prev, botUsername: e.target.value }))} className="w-40 h-8 rounded-lg px-3 text-xs text-white outline-none text-right transition-all" style={inputStyle} />
+                        </div>
+                      </>
                     )}
                   </div>
                 ))}

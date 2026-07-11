@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Calendar, Globe2, Laptop, ShieldCheck, CheckCircle, ShieldAlert, Save, Loader2 } from 'lucide-react';
+import { Trophy, Calendar, Globe2, Laptop, ShieldCheck, CheckCircle, ShieldAlert, Save, Loader2, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { getDisplayName, type TelegramUser } from '../lib/telegramUser';
@@ -57,6 +57,10 @@ export const Profile = ({ efcBalance, dbUser, showToast, telegramUser, adminSett
   };
 
   const handleWithdrawClick = () => {
+    if (!adminSettings.withdrawOpen) {
+      showToast('USDT Withdrawals are currently closed by administrators.', 'error');
+      return;
+    }
     const minRefs = adminSettings.withdrawMinReferrals;
     const currentRefs = dbUser?.referrals || 0;
     
@@ -277,27 +281,37 @@ export const Profile = ({ efcBalance, dbUser, showToast, telegramUser, adminSett
         </div>
 
         <div className="flex flex-col gap-3">
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            Withdraw your referral commissions and rewards to your connected BEP-20 wallet. Minimum withdrawal amount is <span className="text-accent-success font-bold">${adminSettings.withdrawMinAmount} USDT</span>. Requires <span className="text-accent-cyan font-bold">{adminSettings.withdrawMinReferrals} verified referrals</span>.
-          </p>
+          {adminSettings.withdrawOpen ? (
+            <>
+              <p className="text-[11px] text-slate-400 leading-relaxed font-normal">
+                Withdraw your referral commissions and rewards to your connected BEP-20 wallet. Minimum withdrawal amount is <span className="text-accent-success font-bold">${adminSettings.withdrawMinAmount} USDT</span>. Requires <span className="text-accent-cyan font-bold">{adminSettings.withdrawMinReferrals} verified referrals</span>.
+              </p>
 
-          <div className="flex items-center gap-3">
-            <div className="flex-1 bg-white/[0.02] border border-white/5 rounded-xl px-3 py-1.5 flex flex-col">
-              <span className="text-[8px] text-slate-500 uppercase tracking-wider">Referral Target</span>
-              <span className="text-xs font-bold text-white">{(dbUser?.referrals || 0)} / {adminSettings.withdrawMinReferrals}</span>
-            </div>
-            <div className="flex-1 bg-white/[0.02] border border-white/5 rounded-xl px-3 py-1.5 flex flex-col">
-              <span className="text-[8px] text-slate-500 uppercase tracking-wider">Withdrawable Balance</span>
-              <span className="text-xs font-bold text-accent-success">${(dbUser?.wallet || 0).toFixed(2)} USDT</span>
-            </div>
-          </div>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 bg-white/[0.02] border border-white/5 rounded-xl px-3 py-1.5 flex flex-col">
+                  <span className="text-[8px] text-slate-500 uppercase tracking-wider">Referral Target</span>
+                  <span className="text-xs font-bold text-white">{(dbUser?.referrals || 0)} / {adminSettings.withdrawMinReferrals}</span>
+                </div>
+                <div className="flex-1 bg-white/[0.02] border border-white/5 rounded-xl px-3 py-1.5 flex flex-col">
+                  <span className="text-[8px] text-slate-500 uppercase tracking-wider">Withdrawable Balance</span>
+                  <span className="text-xs font-bold text-accent-success">${(dbUser?.wallet || 0).toFixed(2)} USDT</span>
+                </div>
+              </div>
 
-          <button
-            onClick={handleWithdrawClick}
-            className="h-10 rounded-xl bg-gradient-to-r from-accent-success to-accent-cyan text-[#050816] text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer shadow-[0_0_12px_rgba(0,255,136,0.2)]"
-          >
-            Withdraw USDT
-          </button>
+              <button
+                onClick={handleWithdrawClick}
+                className="h-10 rounded-xl bg-gradient-to-r from-accent-success to-accent-cyan text-[#050816] text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer shadow-[0_0_12px_rgba(0,255,136,0.2)]"
+              >
+                Withdraw USDT
+              </button>
+            </>
+          ) : (
+            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 text-center flex flex-col gap-1.5">
+              <Lock className="text-slate-500 mx-auto" size={16} />
+              <span className="text-xs font-bold text-slate-400">Withdrawals Locked</span>
+              <p className="text-[10px] text-slate-500">USDT withdrawals are temporarily locked by administrators.</p>
+            </div>
+          )}
         </div>
       </div>
 
