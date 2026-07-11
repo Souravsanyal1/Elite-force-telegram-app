@@ -20,6 +20,7 @@ interface HomeProps {
   telegramUser: TelegramUser | null;
   adminSettings: AdminSettings;
   setActiveTab: (tab: any) => void;
+  energyCooldownUntil: number;
 }
 
 interface FloatingText {
@@ -41,9 +42,16 @@ export const Home: React.FC<HomeProps> = ({
   telegramUser,
   adminSettings: settings, // alias adminSettings to settings
   setActiveTab,
+  energyCooldownUntil,
 }) => {
   void usdtBalance;
   const [clicks, setClicks] = useState<FloatingText[]>([]);
+  const [nowTime, setNowTime] = useState(Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => setNowTime(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   // Combo system
   const [combo, setCombo] = useState(0);
@@ -126,6 +134,13 @@ export const Home: React.FC<HomeProps> = ({
 
   // Tap handler (Optimized for unlimited fast clicks)
   const handleCoinClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const isLocked = Date.now() < energyCooldownUntil;
+    if (isLocked) {
+      const remainingSecs = Math.ceil((energyCooldownUntil - Date.now()) / 1000);
+      showToast(`Energy Locked! Please wait ${remainingSecs}s.`, 'warning');
+      return;
+    }
+
     if (energy <= 0) {
       showToast('No energy! Wait for regeneration.', 'warning');
       return;
@@ -411,15 +426,27 @@ export const Home: React.FC<HomeProps> = ({
       <div className="relative flex flex-col items-center gap-4">
         {/* Energy Bar */}
         <div className="w-full flex items-center gap-2">
-          <Zap size={12} className="text-[#FF8A00] shrink-0" />
+          <Zap size={12} className={nowTime < energyCooldownUntil ? 'text-slate-500 animate-pulse shrink-0' : 'text-[#FF8A00] shrink-0'} />
           <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
             <motion.div
-              className="h-full bg-gradient-to-r from-[#FF8A00] to-[#FFD700] rounded-full"
+              className={`h-full rounded-full ${
+                nowTime < energyCooldownUntil
+                  ? 'bg-gradient-to-r from-red-500 to-red-400 opacity-60'
+                  : 'bg-gradient-to-r from-[#FF8A00] to-[#FFD700]'
+              }`}
               animate={{ width: `${energyPercent}%` }}
               transition={{ duration: 0.3 }}
             />
           </div>
-          <span className="text-[9px] text-slate-500 font-bold shrink-0">{energy}/{maxEnergy}</span>
+          <span className="text-[9px] font-bold shrink-0 text-slate-500">
+            {nowTime < energyCooldownUntil ? (
+              <span className="text-red-400 font-extrabold uppercase tracking-wide">
+                Locked ({Math.max(0, Math.ceil((energyCooldownUntil - nowTime) / 1000))}s)
+              </span>
+            ) : (
+              `${energy}/${maxEnergy}`
+            )}
+          </span>
         </div>
 
         {/* Coin Tap */}

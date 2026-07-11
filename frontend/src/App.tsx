@@ -43,6 +43,9 @@ export default function App() {
   const [referralsCount, setReferralsCount] = useState<number>(() => getPersisted('referralsCount', 0));
   const [hasUnlockedWithdrawal, setHasUnlockedWithdrawal] = useState<boolean>(() => getPersisted('hasUnlockedWithdrawal', false));
   const [energy, setEnergy] = useState<number>(() => getPersisted('energy', 1000));
+  const [energyCooldownUntil, setEnergyCooldownUntil] = useState<number>(() => {
+    return Number(localStorage.getItem('energyCooldownUntil') || '0');
+  });
   
   // Admin-controlled settings (managed by Admin panel via Firestore)
   const [swapOpen, _setSwapOpen] = useState<boolean>(() => getPersisted('swapOpen', false));
@@ -289,12 +292,25 @@ export default function App() {
     localStorage.setItem('bypassTelegramCheck', JSON.stringify(bypassTelegramCheck));
   }, [bypassTelegramCheck]);
 
-  // Energy regeneration loop — batched every 5s to reduce re-renders (same rate: +3/s)
+  // Set lock when energy becomes 0
+  useEffect(() => {
+    if (energy === 0) {
+      const lockTime = Date.now() + 60000; // 60 seconds lock
+      setEnergyCooldownUntil(lockTime);
+      localStorage.setItem('energyCooldownUntil', String(lockTime));
+    }
+  }, [energy]);
+
+  // Energy regeneration loop — batched every 5s (slower rate: +5 per 5s = +1/s)
   useEffect(() => {
     const interval = setInterval(() => {
+      const lockUntil = Number(localStorage.getItem('energyCooldownUntil') || '0');
+      if (Date.now() < lockUntil) {
+        return; // Locked under zero energy cooldown
+      }
       setEnergy(prev => {
         if (prev >= maxEnergy) return maxEnergy;
-        return Math.min(prev + 15, maxEnergy); // +15 per 5s = same as +3 per 1s
+        return Math.min(prev + 5, maxEnergy); // +5 per 5s = same as +1 per 1s (standard)
       });
     }, 5000);
     return () => clearInterval(interval);
@@ -360,6 +376,7 @@ export default function App() {
             telegramUser={telegramUser}
             adminSettings={adminSettings}
             setActiveTab={setActiveTab}
+            energyCooldownUntil={energyCooldownUntil}
           />
         );
       case 'tasks':
