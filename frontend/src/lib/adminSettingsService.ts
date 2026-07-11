@@ -54,6 +54,7 @@ export interface AdminSettings {
   // Swap
   swapOpen: boolean;
   withdrawOpen: boolean;
+  withdrawRequireReferrals: boolean;
 
   // Bot Username
   botUsername: string;
@@ -91,6 +92,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   tokenSaleMaxPurchase: 1000,
   swapOpen: false,
   withdrawOpen: true,
+  withdrawRequireReferrals: true,
   botUsername: 'EliteForceBot',
 };
 

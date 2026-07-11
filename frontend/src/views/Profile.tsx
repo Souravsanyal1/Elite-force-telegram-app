@@ -64,7 +64,7 @@ export const Profile = ({ efcBalance, dbUser, showToast, telegramUser, adminSett
     const minRefs = adminSettings.withdrawMinReferrals;
     const currentRefs = dbUser?.referrals || 0;
     
-    if (currentRefs < minRefs) {
+    if (adminSettings.withdrawRequireReferrals && currentRefs < minRefs) {
       setShowWarningModal(true);
       return;
     }
@@ -284,13 +284,15 @@ export const Profile = ({ efcBalance, dbUser, showToast, telegramUser, adminSett
           {adminSettings.withdrawOpen ? (
             <>
               <p className="text-[11px] text-slate-400 leading-relaxed font-normal">
-                Withdraw your referral commissions and rewards to your connected BEP-20 wallet. Minimum withdrawal amount is <span className="text-accent-success font-bold">${adminSettings.withdrawMinAmount} USDT</span>. Requires <span className="text-accent-cyan font-bold">{adminSettings.withdrawMinReferrals} verified referrals</span>.
+                Withdraw your referral commissions and rewards to your connected BEP-20 wallet. Minimum withdrawal amount is <span className="text-accent-success font-bold">${adminSettings.withdrawMinAmount} USDT</span>.{adminSettings.withdrawRequireReferrals && <> Requires <span className="text-accent-cyan font-bold">{adminSettings.withdrawMinReferrals} verified referrals</span>.</>}
               </p>
 
               <div className="flex items-center gap-3">
                 <div className="flex-1 bg-white/[0.02] border border-white/5 rounded-xl px-3 py-1.5 flex flex-col">
                   <span className="text-[8px] text-slate-500 uppercase tracking-wider">Referral Target</span>
-                  <span className="text-xs font-bold text-white">{(dbUser?.referrals || 0)} / {adminSettings.withdrawMinReferrals}</span>
+                  <span className={`text-xs font-bold ${adminSettings.withdrawRequireReferrals ? 'text-white' : 'text-accent-success'}`}>
+                    {adminSettings.withdrawRequireReferrals ? `${(dbUser?.referrals || 0)} / ${adminSettings.withdrawMinReferrals}` : 'None'}
+                  </span>
                 </div>
                 <div className="flex-1 bg-white/[0.02] border border-white/5 rounded-xl px-3 py-1.5 flex flex-col">
                   <span className="text-[8px] text-slate-500 uppercase tracking-wider">Withdrawable Balance</span>

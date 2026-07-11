@@ -90,7 +90,7 @@ export const Wallet: React.FC<WalletProps> = ({
     const minRefs = settings.withdrawMinReferrals;
     const currentRefs = dbUser?.referrals || 0;
     
-    if (currentRefs < minRefs) {
+    if (settings.withdrawRequireReferrals && currentRefs < minRefs) {
       setShowWarningModal(true);
       return;
     }
@@ -371,12 +371,14 @@ export const Wallet: React.FC<WalletProps> = ({
                 </div>
                 <div className="text-right flex flex-col gap-0.5">
                   <span className="text-[9px] text-slate-500 uppercase font-semibold">Requirement</span>
-                  <span className="text-[10px] text-slate-300 font-bold">{currentRefs}/{withdrawMinReferrals} Affiliates</span>
+                  <span className={`text-[10px] font-bold ${settings.withdrawRequireReferrals ? 'text-slate-300' : 'text-accent-success'}`}>
+                    {settings.withdrawRequireReferrals ? `${currentRefs}/${withdrawMinReferrals} Affiliates` : 'None'}
+                  </span>
                 </div>
               </div>
               
               <p className="text-[11px] text-slate-400 leading-relaxed font-normal">
-                Withdraw your earned USDT commissions to your saved BEP-20 address. Minimum withdrawal amount is <span className="text-accent-cyan font-bold">${settings.withdrawMinAmount} USDT</span>.
+                Withdraw your earned USDT commissions to your saved BEP-20 address. Minimum withdrawal amount is <span className="text-accent-cyan font-bold">${settings.withdrawMinAmount} USDT</span>.{settings.withdrawRequireReferrals && <> Requires <span className="text-accent-purple font-bold">{withdrawMinReferrals} valid affiliates</span>.</>}
               </p>
               
               <button
