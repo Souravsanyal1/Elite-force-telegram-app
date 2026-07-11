@@ -53,7 +53,7 @@ export const Leaderboard = ({ telegramUser, efcBalance, showToast, swapRate }: L
         <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
           <Trophy className="text-[#FF8A00]" size={24} /> Top Miners
         </h1>
-        <p className="text-xs text-slate-400 mt-1">Global ecosystem rankings by EForce points.</p>
+        <p className="text-xs text-slate-400 mt-1">Global ecosystem rankings by EFC Points.</p>
       </div>
 
       {/* Current User Rank Card */}
@@ -73,13 +73,13 @@ export const Leaderboard = ({ telegramUser, efcBalance, showToast, swapRate }: L
               <span className="text-sm font-black text-white leading-none mt-0.5">#{myRank}</span>
             </div>
             <div>
-              <span className="text-xs font-bold text-white block">You (EForce Miner)</span>
+              <span className="text-xs font-bold text-white block">You (EFC Miner)</span>
               <span className="text-[10px] text-slate-400">@{telegramUser.username || 'user'}</span>
             </div>
           </div>
           <div className="text-right">
-            <span className="text-sm font-black text-[#FF8A00] block">{efcBalance.toLocaleString()} EF</span>
-            <span className="text-[9px] text-slate-500 font-semibold block">≈ {(efcBalance / (swapRate || 1000)).toFixed(2)} EForce</span>
+            <span className="text-sm font-black text-[#FF8A00] block">{efcBalance.toLocaleString()} EFC</span>
+            <span className="text-[9px] text-slate-500 font-semibold block">≈ {(efcBalance / (swapRate || 1000)).toFixed(2)} EForce Token</span>
           </div>
         </motion.div>
       )}
@@ -157,6 +157,11 @@ export const Leaderboard = ({ telegramUser, efcBalance, showToast, swapRate }: L
                     </span>
                     <VerifiedBadge size={10} className="shrink-0" />
                     {u.isTelegramPremium && <Star size={10} className="text-[#00E5FF] fill-current shrink-0" />}
+                    {u.leaderboardPinned && (
+                      <span className="text-[7px] font-black text-[#FF8A00] bg-[#FF8A00]/15 border border-[#FF8A00]/25 px-1.5 py-0.5 rounded uppercase shrink-0">
+                        📌 Pinned
+                      </span>
+                    )}
                   </div>
                   <span className="text-[9px] text-slate-500 block mt-0.5">@{u.username || 'user'}</span>
                 </div>
@@ -164,7 +169,7 @@ export const Leaderboard = ({ telegramUser, efcBalance, showToast, swapRate }: L
                 {/* Score */}
                 <div className="text-right shrink-0">
                   <span className="text-xs font-black text-white">{(u.points || 0).toLocaleString()}</span>
-                  <span className="text-[8px] text-slate-500 block mt-0.5 font-bold uppercase tracking-wider">Points</span>
+                  <span className="text-[8px] text-slate-500 block mt-0.5 font-bold uppercase tracking-wider">EFC Points</span>
                 </div>
               </motion.div>
             );

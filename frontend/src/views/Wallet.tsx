@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Wallet as WalletIcon, Clock, ShieldCheck, Lock, CheckCircle, ShieldAlert, X, Edit3, Save } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { type AdminSettings } from '../lib/adminSettingsService';
-import { submitWithdrawRequest, updateWalletAddress, subscribeToUser, updateUserDatabaseValues, type FirestoreUser } from '../lib/userService';
+import { submitWithdrawRequest, updateWalletAddress, subscribeToUser, updateUserDatabaseValues, getUserTodayWithdrawalAmount, type FirestoreUser } from '../lib/userService';
 import type { TelegramUser } from '../lib/telegramUser';
 
 interface WalletProps {
@@ -154,6 +154,17 @@ export const Wallet: React.FC<WalletProps> = ({
           return;
         }
 
+        // Daily limit validation
+        const todayWithdrawn = await getUserTodayWithdrawalAmount(telegramUser.id);
+        const addedValue = withdrawAsset === 'usdt' ? amountNum : amountNum * (settings.eforceTokenValue || 0.05);
+        const dailyLimit = settings.dailyWithdrawLimit || 50.00;
+        if (todayWithdrawn + addedValue > dailyLimit) {
+          setIsVerifying(false);
+          setPin('');
+          showToast(`Exceeds daily withdrawal limit of $${dailyLimit} USDT. Remaining: $${Math.max(0, dailyLimit - todayWithdrawn).toFixed(2)} USDT`, 'error');
+          return;
+        }
+
         const res = await submitWithdrawRequest(
           telegramUser.id,
           telegramUser.username || `user_${telegramUser.id}`,
@@ -268,28 +279,21 @@ export const Wallet: React.FC<WalletProps> = ({
           </span>
         </div>
 
-        <div className="flex flex-col gap-1 mb-6">
-          <span className="text-[10px] text-slate-500 uppercase tracking-widest block font-bold">Total Token Value (USD)</span>
-          <span className="text-3xl font-extrabold tracking-tight text-white font-display">
-            ${(eforceTokens * (settings.eforceTokenValue || 0.05)).toFixed(2)}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
+        <div className="grid grid-cols-2 gap-4 pt-4">
           <div>
-            <span className="text-[9px] text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">EForce Balance</span>
+            <span className="text-[9px] text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">EFC Points</span>
             <span className="text-sm font-extrabold text-white font-display">{efcBalance.toLocaleString()}</span>
             <span className="text-[8px] text-slate-500 block mt-0.5 font-bold">
-              ≈ {(efcBalance / swapRate).toFixed(2)} Tokens
+              ≈ {(efcBalance / swapRate).toFixed(2)} EForce Token
             </span>
           </div>
           <div>
-            <span className="text-[9px] text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">EForce Tokens</span>
+            <span className="text-[9px] text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">EForce Token</span>
             <span className="text-sm font-semibold text-accent-purple flex items-center gap-1 font-display mb-0.5">
               <Clock size={11} /> {eforceTokens.toLocaleString()}
             </span>
             <span className="text-[8px] text-slate-400 block font-bold">
-              ≈ ${(eforceTokens * (settings.eforceTokenValue || 0.05)).toFixed(2)} USDT
+              Utility Asset
             </span>
           </div>
         </div>
@@ -362,7 +366,7 @@ export const Wallet: React.FC<WalletProps> = ({
           {settings.swapOpen ? (
             <div className="flex flex-col gap-3">
               <p className="text-[11px] text-slate-400 leading-relaxed font-normal">
-                Convert your mined EForce Points to EForce utility tokens instantly. Current Conversion rate is <span className="text-accent-cyan font-bold">{swapRate} Points = 1 EForce Token</span> (Valued at <span className="text-accent-success font-bold">${settings.eforceTokenValue || 0.05} USDT</span>).
+                Convert your mined EFC Points to EForce Token instantly. Current Conversion rate is <span className="text-accent-cyan font-bold">{swapRate} Points = 1 EForce Token</span>.
               </p>
               <button
                 onClick={() => setShowSwapModal(true)}
@@ -468,10 +472,7 @@ export const Wallet: React.FC<WalletProps> = ({
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[10px] text-slate-500 font-bold uppercase">You will receive</span>
                   <span className="text-sm font-black text-accent-cyan">
-                    {(parseInt(swapInputPoints) / swapRate || 0).toLocaleString()} EForce Tokens
-                  </span>
-                  <span className="text-[9px] text-slate-400 font-bold block mt-0.5">
-                    ≈ ${((parseInt(swapInputPoints) / swapRate || 0) * (settings.eforceTokenValue || 0.05)).toFixed(2)} USDT value
+                    {(parseInt(swapInputPoints) / swapRate || 0).toLocaleString()} EForce Token
                   </span>
                 </div>
 

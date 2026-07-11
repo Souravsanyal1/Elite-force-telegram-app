@@ -55,9 +55,12 @@ export interface AdminSettings {
   swapOpen: boolean;
   withdrawOpen: boolean;
   withdrawRequireReferrals: boolean;
+  dailyWithdrawLimit: number;
+  humanVerificationOpen: boolean;
 
-  // Bot Username
+  // Bot & Admin Username
   botUsername: string;
+  adminUsername: string;
 }
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
@@ -93,7 +96,10 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   swapOpen: false,
   withdrawOpen: true,
   withdrawRequireReferrals: true,
+  dailyWithdrawLimit: 50.00,
+  humanVerificationOpen: false,
   botUsername: 'EliteForceBot',
+  adminUsername: '',
 };
 
 const SETTINGS_DOC = 'adminSettings/config';

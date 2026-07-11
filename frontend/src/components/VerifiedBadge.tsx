@@ -24,102 +24,68 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({ size = 16, classNa
       style={{ overflow: 'visible' }}
     >
       <defs>
-        <linearGradient id={`bg-${id}`} x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#FFB347"/>
-          <stop offset="100%" stopColor="#FF8A00"/>
+        {/* Glowing Orange glassmorphism gradient */}
+        <linearGradient id={`glass-bg-${id}`} x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FFB347" stopOpacity="0.25"/>
+          <stop offset="100%" stopColor="#FF8A00" stopOpacity="0.08"/>
         </linearGradient>
 
-        <linearGradient id={`shine-${id}`} x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#FFF8E6" stopOpacity="0.95"/>
-          <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0"/>
-        </linearGradient>
-
-        <linearGradient id={`ring-${id}`} x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#FFD700"/>
+        <linearGradient id={`glass-border-${id}`} x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FFB347" stopOpacity="0.8"/>
           <stop offset="50%" stopColor="#FF8A00" stopOpacity="0.3"/>
-          <stop offset="100%" stopColor="#FFD700"/>
+          <stop offset="100%" stopColor="#FF8A00" stopOpacity="0.9"/>
         </linearGradient>
 
-        <filter id={`glow-${id}`} x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="5" result="blur"/>
-          <feMerge>
-            <feMergeNode in="blur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
+        <linearGradient id={`glow-${id}-grad`} x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FFB347" stopOpacity="0.4"/>
+          <stop offset="100%" stopColor="#FF8A00" stopOpacity="0"/>
+        </linearGradient>
+
+        <filter id={`blur-${id}`} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="6" result="blur"/>
         </filter>
       </defs>
 
-      {/* Outer pulsing glow aura */}
+      {/* Glass glow backdrop */}
       <motion.circle
-        cx="64" cy="64" r="58"
-        fill="url(#bg-${id})"
-        filter={`url(#glow-${id})`}
-        animate={{ opacity: [0.15, 0.40, 0.15], scale: [0.94, 1.06, 0.94] }}
-        transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+        cx="64" cy="64" r="50"
+        fill={`url(#glow-${id}-grad)`}
+        filter={`url(#blur-${id})`}
+        animate={{ opacity: [0.3, 0.7, 0.3], scale: [0.95, 1.05, 0.95] }}
+        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      {/* Rotating dashed orbit ring */}
-      <motion.circle
-        cx="64" cy="64" r="52"
-        stroke={`url(#ring-${id})`}
-        strokeWidth="2"
-        strokeDasharray="8 6"
-        fill="none"
-        animate={{ rotate: 360 }}
-        transition={{ duration: 7, repeat: Infinity, ease: "linear" }}
-        style={{ transformOrigin: '64px 64px' }}
-      />
-
-      {/* Main badge circle */}
+      {/* Main glass badge body */}
       <circle
-        cx="64" cy="64" r="46"
-        fill={`url(#bg-${id})`}
-        stroke="#FFD18C"
-        strokeWidth="3"
+        cx="64" cy="64" r="44"
+        fill={`url(#glass-bg-${id})`}
+        stroke={`url(#glass-border-${id})`}
+        strokeWidth="3.5"
+        style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
       />
 
-      {/* Shine sweep overlay */}
-      <motion.ellipse
-        cx="45" cy="40" rx="26" ry="16"
-        fill={`url(#shine-${id})`}
-        animate={{ opacity: [0.3, 0.7, 0.3], x: [-4, 4, -4] }}
-        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+      {/* Inner thin glow ring */}
+      <circle
+        cx="64" cy="64" r="38"
+        stroke="#FFB347"
+        strokeWidth="1"
+        strokeOpacity="0.4"
+        fill="none"
       />
 
       {/* Animated checkmark draw */}
       <motion.path
-        d="M40 66 L56 82 L88 47"
-        stroke="#FFFFFF"
-        strokeWidth="10"
+        d="M42 66 L56 80 L86 48"
+        stroke="#FF8A00"
+        strokeWidth="9"
         strokeLinecap="round"
         strokeLinejoin="round"
         initial={{ pathLength: 0, opacity: 0 }}
         animate={{ pathLength: 1, opacity: 1 }}
         transition={{ duration: 0.55, delay: 0.15, ease: "easeOut" }}
-      />
-
-      {/* Sparkle — top right */}
-      <motion.circle
-        cx="96" cy="30" r="3"
-        fill="#FFD700"
-        animate={{ scale: [0, 1.4, 0], opacity: [0, 1, 0] }}
-        transition={{ duration: 1.8, repeat: Infinity, delay: 0.3, ease: "easeInOut" }}
-      />
-
-      {/* Sparkle — bottom left */}
-      <motion.circle
-        cx="28" cy="98" r="2.5"
-        fill="#FF8A00"
-        animate={{ scale: [0, 1.2, 0], opacity: [0, 1, 0] }}
-        transition={{ duration: 1.8, repeat: Infinity, delay: 0.9, ease: "easeInOut" }}
-      />
-
-      {/* Sparkle — top left */}
-      <motion.circle
-        cx="26" cy="34" r="2"
-        fill="#FFD700"
-        animate={{ scale: [0, 1.3, 0], opacity: [0, 0.9, 0] }}
-        transition={{ duration: 1.8, repeat: Infinity, delay: 1.4, ease: "easeInOut" }}
+        style={{
+          filter: 'drop-shadow(0px 0px 5px rgba(255, 138, 0, 0.8))'
+        }}
       />
     </motion.svg>
   );

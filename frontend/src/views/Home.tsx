@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Trophy, Flame, ChevronRight, Zap, Play, Square } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getDisplayName, type TelegramUser } from '../lib/telegramUser';
-import { recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, subscribeToUser, markUserStarted, upsertUser, syncPointsToFirestore, type FirestoreUser } from '../lib/userService';
+import { recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, subscribeToUser, markUserStarted, upsertUser, syncPointsToFirestore, updateUserDatabaseValues, type FirestoreUser } from '../lib/userService';
 import { type AdminSettings } from '../lib/adminSettingsService';
 import { VerifiedBadge } from '../components/VerifiedBadge';
 import { showRewardedAd } from '../lib/monetag';
@@ -104,19 +104,89 @@ export const Home: React.FC<HomeProps> = ({
     }
   }, []);
 
-  // Auto miner cooldown check from localStorage
+  // Sync Auto Miner state from Firestore real-time updates
   useEffect(() => {
-    const lastUsed = localStorage.getItem('autoMinerLastUsed');
-    if (lastUsed) {
-      const elapsed = (Date.now() - Number(lastUsed)) / 1000;
-      const cooldown = settings.autoMinerCooldown;
-      if (elapsed < cooldown) {
-        setAutoMinerCooldownLeft(Math.ceil(cooldown - elapsed));
-        // Start countdown
-        startCooldownCountdown(Math.ceil(cooldown - elapsed));
+    if (!dbUser || !settings) return;
+
+    if (dbUser.autoMinerActive && dbUser.autoMinerLastUsed) {
+      const lastUsedTime = (dbUser.autoMinerLastUsed as any)?.toDate 
+        ? (dbUser.autoMinerLastUsed as any).toDate().getTime() 
+        : (dbUser.autoMinerLastUsed as any)?.seconds 
+        ? (dbUser.autoMinerLastUsed as any).seconds * 1000 
+        : new Date(dbUser.autoMinerLastUsed as any).getTime();
+      
+      const elapsed = Math.floor((Date.now() - lastUsedTime) / 1000);
+      const duration = settings.autoMinerDuration || 300;
+
+      if (elapsed < duration) {
+        setAutoMinerRunning(true);
+        setAutoMinerSeconds(elapsed);
+
+        if (!autoMinerIntervalRef.current) {
+          autoMinerIntervalRef.current = setInterval(() => {
+            setAutoMinerSeconds(prev => {
+              const newVal = prev + 1;
+              if (newVal >= duration) {
+                clearInterval(autoMinerIntervalRef.current!);
+                autoMinerIntervalRef.current = null;
+                setAutoMinerRunning(false);
+                const reward = settings.autoMinerReward;
+                setEfcBalance(p => p + reward);
+                if (telegramUser) {
+                  endAutoMinerSession(telegramUser.id, reward).catch(() => {});
+                }
+                showToast(`⛏️ Mining complete! +${reward.toLocaleString()} EFC Points earned!`, 'success');
+                confetti({ particleCount: 60, spread: 55, origin: { y: 0.7 }, colors: ['#FF8A00', '#FFD700'] });
+                startCooldownCountdown(settings.autoMinerCooldown);
+              }
+              return newVal;
+            });
+          }, 1000);
+        }
+      } else {
+        // Mining has completed while user was offline/away
+        if (autoMinerIntervalRef.current) {
+          clearInterval(autoMinerIntervalRef.current);
+          autoMinerIntervalRef.current = null;
+        }
+        setAutoMinerRunning(false);
+        setAutoMinerSeconds(0);
+
+        const reward = settings.autoMinerReward;
+        endAutoMinerSession(telegramUser!.id, reward).catch(() => {});
+        showToast(`⛏️ Mining complete! +${reward.toLocaleString()} EFC Points earned!`, 'success');
+        confetti({ particleCount: 60, spread: 55, origin: { y: 0.7 }, colors: ['#FF8A00', '#FFD700'] });
+
+        const cooldown = settings.autoMinerCooldown;
+        const cooldownElapsed = Math.floor((Date.now() - lastUsedTime) / 1000);
+        if (cooldownElapsed < cooldown) {
+          startCooldownCountdown(Math.ceil(cooldown - cooldownElapsed));
+        }
+      }
+    } else {
+      // Miner is not active in DB. Check for cooldown
+      if (dbUser.autoMinerLastUsed) {
+        const lastUsedTime = (dbUser.autoMinerLastUsed as any)?.toDate 
+          ? (dbUser.autoMinerLastUsed as any).toDate().getTime() 
+          : (dbUser.autoMinerLastUsed as any)?.seconds 
+          ? (dbUser.autoMinerLastUsed as any).seconds * 1000 
+          : new Date(dbUser.autoMinerLastUsed as any).getTime();
+        
+        const elapsed = (Date.now() - lastUsedTime) / 1000;
+        const cooldown = settings.autoMinerCooldown;
+        if (elapsed < cooldown) {
+          const remaining = Math.ceil(cooldown - elapsed);
+          startCooldownCountdown(remaining);
+        } else {
+          setAutoMinerCooldownLeft(0);
+          if (autoMinerCooldownRef.current) {
+            clearInterval(autoMinerCooldownRef.current);
+            autoMinerCooldownRef.current = null;
+          }
+        }
       }
     }
-  }, [settings.autoMinerCooldown]);
+  }, [dbUser, settings]);
 
   const startCooldownCountdown = (seconds: number) => {
     if (autoMinerCooldownRef.current) clearInterval(autoMinerCooldownRef.current);
@@ -125,6 +195,7 @@ export const Home: React.FC<HomeProps> = ({
       setAutoMinerCooldownLeft(prev => {
         if (prev <= 1) {
           clearInterval(autoMinerCooldownRef.current!);
+          autoMinerCooldownRef.current = null;
           return 0;
         }
         return prev - 1;
@@ -280,43 +351,23 @@ export const Home: React.FC<HomeProps> = ({
         showToast(result.reason || 'Cannot start miner.', 'warning');
         return;
       }
-    }
-
-    localStorage.setItem('autoMinerLastUsed', String(Date.now()));
-    setAutoMinerRunning(true);
-    setAutoMinerSeconds(0);
-    showToast('⛏️ Auto Miner started! Mining for ' + (settings.autoMinerDuration / 60).toFixed(0) + ' minutes...', 'success');
-
-    // Mark user as started in Firestore (first real interaction = counted in admin)
-    if (telegramUser) {
+      // Mark user as started in Firestore (first real interaction = counted in admin)
       markUserStarted(telegramUser.id).catch(() => {});
     }
 
-    // Mining countdown
-    if (autoMinerIntervalRef.current) clearInterval(autoMinerIntervalRef.current);
-    autoMinerIntervalRef.current = setInterval(async () => {
-      setAutoMinerSeconds(prev => {
-        const newVal = prev + 1;
-        if (newVal >= settings.autoMinerDuration) {
-          clearInterval(autoMinerIntervalRef.current!);
-          setAutoMinerRunning(false);
-          const reward = settings.autoMinerReward;
-          setEfcBalance(p => p + reward);
-          if (telegramUser) endAutoMinerSession(telegramUser.id, reward).catch(() => {});
-          showToast(`⛏️ Mining complete! +${reward.toLocaleString()} EForce earned!`, 'success');
-          confetti({ particleCount: 60, spread: 55, origin: { y: 0.7 }, colors: ['#FF8A00', '#FFD700'] });
-          // Start cooldown
-          startCooldownCountdown(settings.autoMinerCooldown);
-        }
-        return newVal;
-      });
-    }, 1000);
+    showToast('⛏️ Auto Miner started! Mining for ' + (settings.autoMinerDuration / 60).toFixed(0) + ' minutes...', 'success');
   };
 
-  const handleStopAutoMiner = () => {
-    if (autoMinerIntervalRef.current) clearInterval(autoMinerIntervalRef.current);
+  const handleStopAutoMiner = async () => {
+    if (autoMinerIntervalRef.current) {
+      clearInterval(autoMinerIntervalRef.current);
+      autoMinerIntervalRef.current = null;
+    }
     setAutoMinerRunning(false);
     setAutoMinerSeconds(0);
+    if (telegramUser) {
+      await updateUserDatabaseValues(telegramUser.id, { autoMinerActive: false }).catch(() => {});
+    }
     showToast('Auto Miner stopped.', 'info');
   };
 
@@ -409,16 +460,14 @@ export const Home: React.FC<HomeProps> = ({
       {/* Balance Cards */}
       <div className="grid grid-cols-2 gap-3">
         <div className="glass-panel p-4 rounded-[20px] border-white/5 flex flex-col gap-1">
-          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">EForce Points</span>
+          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">EFC Points</span>
           <span className="text-xl font-black text-[#FF8A00]">{efcBalance.toLocaleString()}</span>
-          <span className="text-[9px] text-slate-500">≈ {(efcBalance / (settings.swapRate || 1000)).toFixed(4)} EForce</span>
+          <span className="text-[9px] text-slate-500">≈ {(efcBalance / (settings.swapRate || 1000)).toFixed(4)} EForce Token</span>
         </div>
         <div className="glass-panel p-4 rounded-[20px] border-white/5 flex flex-col gap-1">
-          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">EForce Tokens</span>
+          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">EForce Token</span>
           <span className="text-xl font-black text-accent-purple">{(dbUser?.tokens || 0).toLocaleString()}</span>
-          <span className="text-[9px] text-slate-500">
-            ≈ ${((dbUser?.tokens || 0) * (settings.eforceTokenValue || 0.05)).toFixed(2)} USDT
-          </span>
+          <span className="text-[9px] text-slate-500">Utility Asset</span>
         </div>
       </div>
 

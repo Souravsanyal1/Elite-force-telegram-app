@@ -87,7 +87,7 @@ export const Referral: React.FC<ReferralProps> = ({
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-white">Referrals</h1>
-        <p className="text-xs text-slate-400 mt-1">Invite friends, earn EForce tokens together</p>
+        <p className="text-xs text-slate-400 mt-1">Invite friends, earn USDT & EForce Token together</p>
       </div>
 
       {/* Stats Row */}
@@ -134,8 +134,6 @@ export const Referral: React.FC<ReferralProps> = ({
         </div>
       </div>
 
-
-
       {/* Reward Structure */}
       <div className="glass-panel p-4 rounded-[22px] border-white/6 flex flex-col gap-3">
         <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold flex items-center gap-1.5">
@@ -161,9 +159,12 @@ export const Referral: React.FC<ReferralProps> = ({
                   </div>
                   <span className="text-[10px] text-slate-300 font-semibold">{milestone} Referrals</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="text-right flex flex-col gap-0.5">
+                  <span className="text-[9px] font-bold text-accent-success">
+                    +${(settings.referralRewardUsdt * milestone).toFixed(2)} USDT
+                  </span>
                   <span className="text-[9px] font-bold text-[#FF8A00]">
-                    +{(settings.referralRewardToken * milestone).toFixed(0)} EForce
+                    +{(settings.referralRewardToken * milestone).toFixed(0)} EForce Token
                   </span>
                 </div>
               </div>
@@ -171,7 +172,7 @@ export const Referral: React.FC<ReferralProps> = ({
           })}
         </div>
         <p className="text-[9px] text-slate-500 text-center">
-          Per valid referral: +{settings.referralRewardToken} EForce
+          Per valid referral: +${settings.referralRewardUsdt} USDT & +{settings.referralRewardToken} EForce Token
         </p>
       </div>
 

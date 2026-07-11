@@ -9,6 +9,7 @@ interface AdminHeaderProps {
   flaggedCount: number;
   onRefresh: () => void;
   isRefreshing: boolean;
+  adminUsername?: string;
 }
 
 const tabTitles: Record<AdminTab, { title: string; sub: string }> = {
@@ -21,7 +22,7 @@ const tabTitles: Record<AdminTab, { title: string; sub: string }> = {
 };
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({
-  activeTab, onMenuClick, pendingCount, flaggedCount, onRefresh, isRefreshing
+  activeTab, onMenuClick, pendingCount, flaggedCount, onRefresh, isRefreshing, adminUsername
 }) => {
   const { title, sub } = tabTitles[activeTab];
   const notifCount = pendingCount + flaggedCount;
@@ -69,8 +70,15 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             A
           </div>
           <div className="hidden md:block">
-            <div className="text-[10px] font-bold text-white leading-none">Admin</div>
-            <div className="text-[8px] text-slate-500">Super Admin</div>
+            <div className="text-[10px] font-extrabold leading-none select-none transition-all duration-300"
+              style={{
+                color: '#FF8A00',
+                textShadow: '0 0 10px rgba(255,138,0,0.65), 0 0 20px rgba(255,138,0,0.3)',
+              }}
+            >
+              {adminUsername ? (adminUsername.startsWith('@') ? adminUsername : `@${adminUsername}`) : '@username'}
+            </div>
+            <div className="text-[8px] text-slate-500 mt-0.5">Super Admin</div>
           </div>
         </div>
       </div>

@@ -81,6 +81,8 @@ export interface FirestoreUser {
   };
 
   totalDailyPoints: number;
+  leaderboardPinned?: boolean;
+  leaderboardHidden?: boolean;
 }
 
 const USERS_COLLECTION = 'users';
@@ -567,6 +569,9 @@ export const updateUserDatabaseValues = async (
     banStatus?: 'none' | 'temp' | 'permanent';
     banUntil?: Timestamp | null;
     walletAddress?: string;
+    autoMinerActive?: boolean;
+    leaderboardPinned?: boolean;
+    leaderboardHidden?: boolean;
   }
 ): Promise<boolean> => {
   if (!isFirebaseConfigured()) return false;
@@ -702,6 +707,7 @@ export const endAutoMinerSession = async (
     const snap = await getDoc(userRef);
     if (!snap.exists()) return;
     const user = snap.data() as FirestoreUser;
+    if (!user.autoMinerActive) return; // Prevent duplicate payouts
     await updateDoc(userRef, {
       autoMinerActive: false,
       points: (user.points || 0) + reward,
@@ -709,10 +715,7 @@ export const endAutoMinerSession = async (
   } catch { /* noop */ }
 };
 
-/**
- * Fetches top users sorted by points for the leaderboard.
- */
-export const getLeaderboardUsers = async (limitCount = 10): Promise<FirestoreUser[]> => {
+export const getLeaderboardUsers = async (limitCount = 100): Promise<FirestoreUser[]> => {
   if (!isFirebaseConfigured()) return [];
   try {
     const q = query(
@@ -722,10 +725,56 @@ export const getLeaderboardUsers = async (limitCount = 10): Promise<FirestoreUse
     );
     const querySnapshot = await getDocs(q);
     const users: FirestoreUser[] = [];
-    querySnapshot.forEach((docSnap) => users.push(docSnap.data() as FirestoreUser));
+    querySnapshot.forEach((docSnap) => {
+      const u = docSnap.data() as FirestoreUser;
+      if (!u.leaderboardHidden) {
+        users.push(u);
+      }
+    });
+
+    // Pinned users first, then sort by points descending
+    users.sort((a, b) => {
+      const pinA = a.leaderboardPinned ? 1 : 0;
+      const pinB = b.leaderboardPinned ? 1 : 0;
+      if (pinA !== pinB) {
+        return pinB - pinA;
+      }
+      return (b.points || 0) - (a.points || 0);
+    });
+
     return users;
   } catch {
     return [];
+  }
+};
+
+/**
+ * Gets the total USDT amount withdrawn by a user today.
+ */
+export const getUserTodayWithdrawalAmount = async (telegramId: number): Promise<number> => {
+  if (!isFirebaseConfigured()) return 0;
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const q = query(
+      collection(db, 'withdrawRequests'),
+      where('telegramId', '==', telegramId),
+      where('createdAt', '>=', Timestamp.fromDate(today))
+    );
+    const snap = await getDocs(q);
+    let sum = 0;
+    snap.forEach((d) => {
+      const data = d.data();
+      // Only count non-rejected, non-banned USDT withdrawals
+      if (data.status !== 'Rejected' && data.status !== 'Banned' && data.type === 'usdt') {
+        sum += data.amount || 0;
+      }
+    });
+    return sum;
+  } catch (err) {
+    console.error("Error in getUserTodayWithdrawalAmount:", err);
+    return 0;
   }
 };
 
@@ -803,4 +852,32 @@ export const subscribeToWithdrawRequests = (
     snap.forEach((d) => reqs.push({ id: d.id, ...d.data() }));
     callback(reqs);
   });
+};
+
+/**
+ * Log admin administrative actions.
+ */
+export const logAdminAction = async (
+  adminTelegramId: number,
+  adminUsername: string,
+  actionType: string,
+  targetTelegramId: number,
+  details: string
+): Promise<boolean> => {
+  if (!isFirebaseConfigured()) return false;
+  try {
+    const logId = `audit_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    await setDoc(doc(db, 'auditLogs', logId), {
+      adminTelegramId,
+      adminUsername,
+      actionType,
+      targetTelegramId,
+      details,
+      createdAt: serverTimestamp(),
+    });
+    return true;
+  } catch (err) {
+    console.error("Error in logAdminAction:", err);
+    return false;
+  }
 };

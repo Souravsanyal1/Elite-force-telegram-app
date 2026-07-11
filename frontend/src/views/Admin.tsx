@@ -17,7 +17,7 @@ import {
   getTodayNewUsersCount, getFlaggedUsersCount, getBannedUsersCount,
   getPremiumUsersCount, getAutoMinerUsersCount, getOnlineUserCount,
   updateWithdrawRequest, subscribeToWithdrawRequests,
-  flagUser, adminSetBan, type FirestoreUser,
+  flagUser, adminSetBan, logAdminAction, type FirestoreUser,
 } from '../lib/userService';
 import {
   subscribeToTasks, createTask, updateTask, deleteTask, type EForceTask, type TaskType,
@@ -76,6 +76,8 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
   const [editRiskLevel, setEditRiskLevel] = useState<'safe' | 'medium' | 'high'>('safe');
   const [editBanStatus, setEditBanStatus] = useState<'none' | 'temp' | 'permanent'>('none');
   const [editBanDuration, setEditBanDuration] = useState<number>(24);
+  const [editLeaderboardPinned, setEditLeaderboardPinned] = useState(false);
+  const [editLeaderboardHidden, setEditLeaderboardHidden] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [savingUser, setSavingUser] = useState(false);
 
@@ -86,6 +88,8 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
     setEditingUser(u); setEditPoints(u.points ?? 0); setEditTokens(u.tokens ?? 0);
     setEditWallet(u.wallet ?? 0); setEditReferrals(u.referrals ?? 0);
     setEditRiskLevel(u.riskLevel ?? 'safe'); setEditBanStatus(u.banStatus ?? 'none');
+    setEditLeaderboardPinned(u.leaderboardPinned ?? false);
+    setEditLeaderboardHidden(u.leaderboardHidden ?? false);
     if (u.banStatus === 'temp' && u.banUntil) {
       const until = u.banUntil instanceof Timestamp ? u.banUntil.toDate() : new Date(u.banUntil as string);
       const diffHrs = Math.max(1, Math.round((until.getTime() - Date.now()) / 3600000));
@@ -97,9 +101,58 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
     if (!editingUser) return; setSavingUser(true);
     let banUntil = null;
     if (editBanStatus === 'temp') banUntil = Timestamp.fromDate(new Date(Date.now() + editBanDuration * 3600000));
-    const ok = await updateUserDatabaseValues(editingUser.telegramId, { points: editPoints, tokens: editTokens, wallet: editWallet, referrals: editReferrals, riskLevel: editRiskLevel, banStatus: editBanStatus, banUntil });
+    const ok = await updateUserDatabaseValues(editingUser.telegramId, {
+      points: editPoints,
+      tokens: editTokens,
+      wallet: editWallet,
+      referrals: editReferrals,
+      riskLevel: editRiskLevel,
+      banStatus: editBanStatus,
+      banUntil,
+      leaderboardPinned: editLeaderboardPinned,
+      leaderboardHidden: editLeaderboardHidden
+    });
+    
+    if (ok) {
+      // Log admin action to auditLogs
+      const sessionStr = localStorage.getItem('admin_session');
+      let adminId = 'unknown';
+      let adminUsername = 'Admin';
+      if (sessionStr) {
+        try {
+          const parsed = JSON.parse(sessionStr);
+          adminId = parsed.uid || 'unknown';
+          adminUsername = parsed.email || 'Admin';
+        } catch {}
+      }
+      
+      const changes: string[] = [];
+      if (editingUser.points !== editPoints) changes.push(`Points: ${editingUser.points} -> ${editPoints}`);
+      if (editingUser.tokens !== editTokens) changes.push(`Tokens: ${editingUser.tokens} -> ${editTokens}`);
+      if (editingUser.wallet !== editWallet) changes.push(`Wallet: ${editingUser.wallet} -> ${editWallet}`);
+      if (editingUser.referrals !== editReferrals) changes.push(`Referrals: ${editingUser.referrals} -> ${editReferrals}`);
+      if (editingUser.riskLevel !== editRiskLevel) changes.push(`Risk: ${editingUser.riskLevel} -> ${editRiskLevel}`);
+      if (editingUser.banStatus !== editBanStatus) changes.push(`Ban: ${editingUser.banStatus} -> ${editBanStatus}`);
+      if ((editingUser.leaderboardPinned ?? false) !== editLeaderboardPinned) changes.push(`Pinned: ${editingUser.leaderboardPinned ?? false} -> ${editLeaderboardPinned}`);
+      if ((editingUser.leaderboardHidden ?? false) !== editLeaderboardHidden) changes.push(`Hidden: ${editingUser.leaderboardHidden ?? false} -> ${editLeaderboardHidden}`);
+
+      if (changes.length > 0) {
+        await logAdminAction(
+          typeof adminId === 'number' ? adminId : 0,
+          adminUsername,
+          'Edit User Profile & Leaderboard',
+          editingUser.telegramId,
+          changes.join(', ')
+        ).catch(() => {});
+      }
+      
+      showToast(`✅ ${editingUser.firstName} updated.`, 'success');
+      fetchUsers();
+      setEditingUser(null);
+    } else {
+      showToast('Error updating user.', 'error');
+    }
     setSavingUser(false);
-    ok ? (showToast(`✅ ${editingUser.firstName} updated.`, 'success'), fetchUsers(), setEditingUser(null)) : showToast('Error updating user.', 'error');
   };
 
   const handleFlagUser = async (u: FirestoreUser) => { await flagUser(u.telegramId, 'Manual flag by admin'); showToast(`🚩 ${u.firstName} flagged.`, 'warning'); fetchUsers(); };
@@ -196,7 +249,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
       <AdminSidebar activeTab={activeTab} setActiveTab={tab => { setActiveTab(tab); setPage(1); }} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} eforceTokenValue={settings.eforceTokenValue} />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <AdminHeader activeTab={activeTab} onMenuClick={() => setSidebarOpen(true)} pendingCount={withdrawals.filter(w => w.status === 'Pending').length} flaggedCount={kpi.flagged} onRefresh={fetchKpis} isRefreshing={loadingKpi} />
+        <AdminHeader activeTab={activeTab} onMenuClick={() => setSidebarOpen(true)} pendingCount={withdrawals.filter(w => w.status === 'Pending').length} flaggedCount={kpi.flagged} onRefresh={fetchKpis} isRefreshing={loadingKpi} adminUsername={settings.adminUsername} />
 
         <main className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.08) transparent' }}>
 
@@ -460,6 +513,23 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
                                     )}
                                   </div>
 
+                                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                    <div>
+                                      <label className="text-[8px] text-slate-500 font-bold uppercase block mb-1">Leaderboard Pin</label>
+                                      <select value={editLeaderboardPinned ? 'true' : 'false'} onChange={e => setEditLeaderboardPinned(e.target.value === 'true')} className={inputCls + ' cursor-pointer'} style={{ ...inputStyle, background: '#0D1117' }}>
+                                        <option value="false">Unpinned</option>
+                                        <option value="true">Pinned</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="text-[8px] text-slate-500 font-bold uppercase block mb-1">Leaderboard Hidden</label>
+                                      <select value={editLeaderboardHidden ? 'true' : 'false'} onChange={e => setEditLeaderboardHidden(e.target.value === 'true')} className={inputCls + ' cursor-pointer'} style={{ ...inputStyle, background: '#0D1117' }}>
+                                        <option value="false">Visible</option>
+                                        <option value="true">Hidden</option>
+                                      </select>
+                                    </div>
+                                  </div>
+
                                   <div className="flex gap-2">
                                     <button onClick={handleSaveUser} disabled={savingUser} className="flex-1 h-10 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all" style={{ background: 'linear-gradient(135deg,#FF8A00,#FFB347)' }}>
                                       {savingUser ? <RefreshCw size={12} className="animate-spin" /> : <Save size={12} />} Save Changes
@@ -666,7 +736,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
                 {[
                   { title: '💰 Economy', fields: [{ label: 'Swap Rate (Points per Token)', key: 'swapRate' }, { label: 'EForce Token Value (USD)', key: 'eforceTokenValue' }, { label: 'Tap Reward (EForce)', key: 'tapReward' }, { label: 'Combo Multiplier (x)', key: 'comboReward' }, { label: 'Max Energy', key: 'energyMax' }] },
                   { title: '⛏️ Auto Miner', fields: [{ label: 'Duration (seconds)', key: 'autoMinerDuration' }, { label: 'Reward per Session (EForce)', key: 'autoMinerReward' }, { label: 'Cooldown (seconds)', key: 'autoMinerCooldown' }] },
-                  { title: '🔗 Referral & Withdrawal', fields: [{ label: 'Referral USDT Reward', key: 'referralRewardUsdt' }, { label: 'Referral Token Reward', key: 'referralRewardToken' }, { label: 'Min Referrals to Withdraw', key: 'withdrawMinReferrals' }, { label: 'Min Withdraw Amount (USDT)', key: 'withdrawMinAmount' }] },
+                  { title: '🔗 Referral & Withdrawal', fields: [{ label: 'Referral USDT Reward', key: 'referralRewardUsdt' }, { label: 'Referral Token Reward', key: 'referralRewardToken' }, { label: 'Min Referrals to Withdraw', key: 'withdrawMinReferrals' }, { label: 'Min Withdraw Amount (USDT)', key: 'withdrawMinAmount' }, { label: 'Daily Withdraw Limit (USDT)', key: 'dailyWithdrawLimit' }] },
                 ].map(section => (
                   <div key={section.title} className="rounded-[20px] p-5 flex flex-col gap-0.5" style={panelStyle}>
                     <span className="text-xs font-black text-white mb-3">{section.title}</span>
@@ -706,6 +776,12 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
                             <div className="absolute top-[3px] bg-white rounded-full transition-all" style={{ width: 18, height: 18, left: settings.withdrawRequireReferrals ? 23 : 3 }} />
                           </button>
                         </div>
+                        <div className="flex items-center justify-between py-2.5 border-t border-white/[0.04] mt-1.5">
+                          <label className="text-xs text-slate-400">Human Verification (CAPTCHA) ON/OFF</label>
+                          <button onClick={() => setSettings(prev => ({ ...prev, humanVerificationOpen: !prev.humanVerificationOpen }))} className={`w-11 h-6 rounded-full transition-all cursor-pointer relative ${settings.humanVerificationOpen ? 'bg-green-500' : 'bg-white/10'}`}>
+                            <div className="absolute top-[3px] bg-white rounded-full transition-all" style={{ width: 18, height: 18, left: settings.humanVerificationOpen ? 23 : 3 }} />
+                          </button>
+                        </div>
                         <div className="flex items-center justify-between gap-4 py-2.5 border-t border-white/[0.04] mt-1.5">
                           <label className="text-xs text-slate-400">Telegram Bot Username (Ref Links)</label>
                           <input type="text" value={settings.botUsername} onChange={e => setSettings(prev => ({ ...prev, botUsername: e.target.value }))} className="w-40 h-8 rounded-lg px-3 text-xs text-white outline-none text-right transition-all" style={inputStyle} />
@@ -714,6 +790,18 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
                     )}
                   </div>
                 ))}
+
+                {/* 👤 Admin Profile Setup */}
+                <div className="rounded-[20px] p-5 flex flex-col gap-0.5" style={panelStyle}>
+                  <span className="text-xs font-black text-white mb-3">👤 Admin Profile</span>
+                  <div className="flex items-center justify-between gap-4 py-2.5">
+                    <label className="text-xs text-slate-400">Admin Profile Username (@)</label>
+                    <input type="text" value={settings.adminUsername || ''} onChange={e => setSettings(prev => ({ ...prev, adminUsername: e.target.value }))} className="w-40 h-8 rounded-lg px-3 text-xs text-white outline-none text-right transition-all" style={inputStyle} placeholder="username" />
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-2">
+                    This sets the administrator telegram/contact username displayed in the system console.
+                  </div>
+                </div>
 
                 {/* 📢 Monetag Sponsored Ads Setup */}
                 <div className="rounded-[20px] p-5 flex flex-col gap-0.5 animate-fade-in" style={panelStyle}>

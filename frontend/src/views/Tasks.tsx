@@ -62,6 +62,7 @@ export const Tasks = ({ setEfcBalance, showToast, telegramUser, adminSettings, d
   const [tasks, setTasks] = useState<EForceTask[]>([]);
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(new Set());
   const [taskStatus, setTaskStatus] = useState<Record<string, TaskStatus>>({});
+  const [taskSteps, setTaskSteps] = useState<Record<string, number>>({});
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [activeFilter, setActiveFilter] = useState<'all' | TaskType>('all');
 
@@ -118,7 +119,50 @@ export const Tasks = ({ setEfcBalance, showToast, telegramUser, adminSettings, d
     if (result.success) {
       setTaskStatus(prev => ({ ...prev, [task.id]: 'completed' }));
       setEfcBalance(bal => bal + task.reward);
-      showToast(`✅ Verified! +${task.reward.toLocaleString()} EForce earned!`, 'success');
+      showToast(`✅ Verified! +${task.reward.toLocaleString()} EFC Points earned!`, 'success');
+      confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 }, colors: ['#FF8A00', '#00E5FF', '#B388FF'] });
+    } else {
+      setTaskStatus(prev => ({ ...prev, [task.id]: 'idle' }));
+      showToast(result.reason || 'Verification failed. Try again.', 'error');
+    }
+  };
+
+  const handleWatchAdStep = async (task: EForceTask) => {
+    if (!telegramUser) return;
+    try {
+      showToast('Loading sponsored video...', 'info');
+      const completed = await showRewardedAd(adminSettings.monetagZoneId);
+      if (completed) {
+        setTaskSteps(prev => ({ ...prev, [task.id]: 2 }));
+        showToast('Ad completed! Telegram link unlocked.', 'success');
+      } else {
+        showToast('Ad dismissed. Complete the ad to proceed!', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Ad dismissed. Complete the ad to proceed!', 'error');
+    }
+  };
+
+  const handleJoinLinkStep = (task: EForceTask) => {
+    if (task.url) {
+      window.open(task.url, '_blank');
+    }
+    setTaskSteps(prev => ({ ...prev, [task.id]: 3 }));
+    showToast('Task link opened. Click Verify to confirm membership.', 'info');
+  };
+
+  const handleVerifyStep = async (task: EForceTask) => {
+    if (!telegramUser) return;
+    setTaskStatus(prev => ({ ...prev, [task.id]: 'verifying' }));
+    // Verification delay (simulates checking join/follow)
+    await new Promise(res => setTimeout(res, 2500));
+
+    const result = await claimTaskReward(telegramUser.id, task);
+
+    if (result.success) {
+      setTaskStatus(prev => ({ ...prev, [task.id]: 'completed' }));
+      setEfcBalance(bal => bal + task.reward);
+      showToast(`✅ Verified! +${task.reward.toLocaleString()} EFC Points earned!`, 'success');
       confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 }, colors: ['#FF8A00', '#00E5FF', '#B388FF'] });
     } else {
       setTaskStatus(prev => ({ ...prev, [task.id]: 'idle' }));
@@ -165,7 +209,7 @@ export const Tasks = ({ setEfcBalance, showToast, telegramUser, adminSettings, d
         );
 
         if (result.success) {
-          showToast(`🎉 Ad completed! +${adminSettings.adTokenReward || 1} EForce Tokens added!`, 'success');
+          showToast(`🎉 Ad completed! +${adminSettings.adTokenReward || 1} EForce Token added!`, 'success');
           confetti({ particleCount: 60, spread: 50, origin: { y: 0.65 }, colors: ['#00E5FF', '#B388FF'] });
         } else {
           showToast(result.reason || 'Verification failed.', 'error');
@@ -282,7 +326,7 @@ export const Tasks = ({ setEfcBalance, showToast, telegramUser, adminSettings, d
                   </div>
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[9px] text-slate-400">
-                      Earn <span className="text-accent-purple font-black">+{adminSettings.adTokenReward || 1} EST Tokens</span> per video watch
+                      Earn <span className="text-accent-purple font-black">+{adminSettings.adTokenReward || 1} EForce Token</span> per video watch
                     </span>
                     <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wide">
                       Watched Today: {adCount}/{limit} ({limit - adCount} remaining)
@@ -320,7 +364,6 @@ export const Tasks = ({ setEfcBalance, showToast, telegramUser, adminSettings, d
               const done = isCompleted(task);
               const expired = isExpired(task);
               const limitHit = isLimitReached(task);
-              const disabled = done || expired || limitHit || status === 'verifying';
 
               return (
                 <motion.div
@@ -356,29 +399,75 @@ export const Tasks = ({ setEfcBalance, showToast, telegramUser, adminSettings, d
                   </div>
 
                   {/* Action */}
-                  <button
-                    onClick={() => handleTaskClick(task)}
-                    disabled={disabled}
-                    className={`shrink-0 w-20 h-8 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer
-                      ${done
-                        ? 'bg-accent-success/15 text-accent-success border border-accent-success/25'
-                        : expired || limitHit
-                        ? 'bg-white/5 text-slate-500 border border-white/10 cursor-not-allowed'
-                        : status === 'verifying'
-                        ? 'bg-white/5 text-slate-400 border border-white/10 cursor-wait'
-                        : 'bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white shadow-[0_0_12px_rgba(255,138,0,0.2)]'
-                      }`}
-                  >
-                    {done ? (
-                      <><Check size={12} /> Done</>
-                    ) : status === 'verifying' ? (
-                      <><Loader2 size={12} className="animate-spin" /> Check</>
-                    ) : expired || limitHit ? (
-                      <><Lock size={11} /> Closed</>
-                    ) : (
-                      'Go'
-                    )}
-                  </button>
+                  {(() => {
+                    if (done) {
+                      return (
+                        <button disabled className="shrink-0 w-20 h-8 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1 bg-accent-success/15 text-accent-success border border-accent-success/25">
+                          <Check size={12} /> Done
+                        </button>
+                      );
+                    }
+                    if (expired || limitHit) {
+                      return (
+                        <button disabled className="shrink-0 w-20 h-8 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1 bg-white/5 text-slate-500 border border-white/10 cursor-not-allowed">
+                          <Lock size={11} /> Closed
+                        </button>
+                      );
+                    }
+                    if (status === 'verifying') {
+                      return (
+                        <button disabled className="shrink-0 w-20 h-8 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1 bg-white/5 text-slate-400 border border-white/10 cursor-wait">
+                          <Loader2 size={12} className="animate-spin" /> Check
+                        </button>
+                      );
+                    }
+
+                    // Step-based layout for channel/group tasks (Force Join)
+                    const isForceJoin = task.type === 'channel' || task.type === 'group';
+                    if (isForceJoin) {
+                      const startStep = adminSettings.adEnabled ? 1 : 2;
+                      const currentStep = taskSteps[task.id] || startStep;
+
+                      if (currentStep === 1) {
+                        return (
+                          <button
+                            onClick={() => handleWatchAdStep(task)}
+                            className="shrink-0 w-22 h-8 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-0.5 bg-accent-purple hover:bg-accent-purple/90 text-white shadow-[0_0_12px_rgba(179,136,255,0.25)] cursor-pointer"
+                          >
+                            1. Watch Ad
+                          </button>
+                        );
+                      }
+                      if (currentStep === 2) {
+                        return (
+                          <button
+                            onClick={() => handleJoinLinkStep(task)}
+                            className="shrink-0 w-22 h-8 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-0.5 bg-accent-cyan hover:bg-accent-cyan/90 text-[#050816] shadow-[0_0_12px_rgba(0,229,255,0.25)] cursor-pointer"
+                          >
+                            2. Open Link
+                          </button>
+                        );
+                      }
+                      return (
+                        <button
+                          onClick={() => handleVerifyStep(task)}
+                          className="shrink-0 w-22 h-8 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-0.5 bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white shadow-[0_0_12px_rgba(255,138,0,0.25)] cursor-pointer"
+                        >
+                          3. Verify
+                        </button>
+                      );
+                    }
+
+                    // Standard task button
+                    return (
+                      <button
+                        onClick={() => handleTaskClick(task)}
+                        className="shrink-0 w-20 h-8 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1 bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white shadow-[0_0_12px_rgba(255,138,0,0.25)] cursor-pointer"
+                      >
+                        Go
+                      </button>
+                    );
+                  })()}
                 </motion.div>
               );
             })}
