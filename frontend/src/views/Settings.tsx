@@ -76,7 +76,7 @@ export const Settings = ({ showToast }: SettingsProps) => {
           </div>
           <div className="flex-1">
             <span className="text-xs font-bold text-white block">Referral Bonus</span>
-            <span className="text-[10px] text-slate-500">Invite friends to unlock USDT withdrawal</span>
+            <span className="text-[10px] text-slate-500">Invite friends to earn EForce token rewards</span>
           </div>
         </div>
 

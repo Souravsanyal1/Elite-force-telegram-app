@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Copy, Share2, Users, Gift, Check, Lock, Unlock } from 'lucide-react';
+import { Copy, Share2, Users, Gift, Check } from 'lucide-react';
 import { getReferralLink, getUserReferrals, type ReferralRecord } from '../lib/referralService';
 import { type AdminSettings } from '../lib/adminSettingsService';
 import type { TelegramUser } from '../lib/telegramUser';
@@ -76,6 +75,8 @@ export const Referral: React.FC<ReferralProps> = ({
   const withdrawMinReferrals = settings.withdrawMinReferrals;
   const referralProgress = Math.min((referralsCount / withdrawMinReferrals) * 100, 100);
   const isWithdrawalUnlocked = referralsCount >= withdrawMinReferrals;
+  void referralProgress;
+  void isWithdrawalUnlocked;
 
   // Level milestones
   const milestones = [1, 3, 5, 10, 20, 50];
@@ -85,7 +86,7 @@ export const Referral: React.FC<ReferralProps> = ({
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-white">Referrals</h1>
-        <p className="text-xs text-slate-400 mt-1">Invite friends, earn real USDT rewards</p>
+        <p className="text-xs text-slate-400 mt-1">Invite friends, earn EForce tokens together</p>
       </div>
 
       {/* Stats Row */}
@@ -132,36 +133,7 @@ export const Referral: React.FC<ReferralProps> = ({
         </div>
       </div>
 
-      {/* Withdrawal Progress */}
-      <div className="glass-panel p-4 rounded-[22px] border-white/6 flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {isWithdrawalUnlocked ? (
-              <Unlock size={14} className="text-accent-success" />
-            ) : (
-              <Lock size={14} className="text-slate-500" />
-            )}
-            <span className="text-[11px] font-bold text-white">
-              {isWithdrawalUnlocked ? 'Withdrawal Unlocked! 🎉' : 'Unlock Withdrawal'}
-            </span>
-          </div>
-          <span className="text-[10px] font-black text-[#FF8A00]">
-            {referralsCount}/{withdrawMinReferrals}
-          </span>
-        </div>
-        <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
-          <motion.div
-            className="h-full bg-gradient-to-r from-[#FF8A00] to-[#FFD700] rounded-full"
-            animate={{ width: `${referralProgress}%` }}
-            transition={{ duration: 0.5 }}
-          />
-        </div>
-        {!isWithdrawalUnlocked && (
-          <p className="text-[9px] text-slate-500">
-            {withdrawMinReferrals - referralsCount} more valid referrals needed to unlock withdrawal.
-          </p>
-        )}
-      </div>
+
 
       {/* Reward Structure */}
       <div className="glass-panel p-4 rounded-[22px] border-white/6 flex flex-col gap-3">
@@ -192,16 +164,13 @@ export const Referral: React.FC<ReferralProps> = ({
                   <span className="text-[9px] font-bold text-[#FF8A00]">
                     +{(settings.referralRewardToken * milestone).toFixed(0)} EForce
                   </span>
-                  <span className="text-[9px] font-bold text-accent-success">
-                    +${(settings.referralRewardUsdt * milestone).toFixed(2)} USDT
-                  </span>
                 </div>
               </div>
             );
           })}
         </div>
         <p className="text-[9px] text-slate-500 text-center">
-          Per valid referral: +{settings.referralRewardToken} EForce + ${settings.referralRewardUsdt} USDT
+          Per valid referral: +{settings.referralRewardToken} EForce
         </p>
       </div>
 
@@ -239,8 +208,7 @@ export const Referral: React.FC<ReferralProps> = ({
         {[
           'Share your referral link with friends',
           'Friend joins via your link & activates account',
-          'You earn EForce tokens + USDT per valid referral',
-          `Get ${withdrawMinReferrals} referrals to unlock USDT withdrawal`,
+          'You earn EForce tokens per valid referral',
         ].map((step, i) => (
           <div key={i} className="flex items-start gap-2.5">
             <div className="w-5 h-5 rounded-full bg-[#FF8A00]/15 border border-[#FF8A00]/25 flex items-center justify-center text-[8px] font-black text-[#FF8A00] shrink-0 mt-0.5">
