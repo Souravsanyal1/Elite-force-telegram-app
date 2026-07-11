@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Wallet as WalletIcon, ArrowUpRight, ArrowDownLeft, Clock, ShieldCheck, Lock, CheckCircle, ShieldAlert, X, Edit3, Save } from 'lucide-react';
+import { Wallet as WalletIcon, Clock, ShieldCheck, Lock, CheckCircle, ShieldAlert, X, Edit3, Save } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { type AdminSettings } from '../lib/adminSettingsService';
 import { submitWithdrawRequest, updateWalletAddress, subscribeToUser, type FirestoreUser } from '../lib/userService';
@@ -201,13 +201,16 @@ export const Wallet: React.FC<WalletProps> = ({
   const currentRefs = dbUser?.referrals || 0;
   const hasUnlockedWithdrawal = currentRefs >= withdrawMinReferrals;
 
+  void handleWithdrawClick;
+  void hasUnlockedWithdrawal;
+
   return (
     <div className="flex flex-col gap-5 pb-28">
       {/* View Header */}
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-white">Wallet</h1>
-          <p className="text-xs text-slate-400 mt-1">Manage deposits, points swap, and USDT withdrawals.</p>
+          <p className="text-xs text-slate-400 mt-1">Manage points swap and check token balances.</p>
         </div>
       </div>
 
@@ -229,9 +232,9 @@ export const Wallet: React.FC<WalletProps> = ({
         </div>
 
         <div className="flex flex-col gap-1 mb-6">
-          <span className="text-[10px] text-slate-500 uppercase tracking-widest block font-bold">Total USDT Balance</span>
+          <span className="text-[10px] text-slate-500 uppercase tracking-widest block font-bold">Total Token Value (USD)</span>
           <span className="text-3xl font-extrabold tracking-tight text-white font-display">
-            ${usdtBalance.toFixed(2)}
+            ${(eforceTokens * (settings.eforceTokenValue || 0.05)).toFixed(2)}
           </span>
         </div>
 
@@ -298,37 +301,7 @@ export const Wallet: React.FC<WalletProps> = ({
         )}
       </div>
 
-      {/* Action Buttons */}
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={() => showToast('Binance Smart Chain (BEP-20) network is supported. Send USDT to your wallet address.', 'info')}
-          className="h-12 glass-btn rounded-[18px] text-xs font-bold text-white flex items-center justify-center gap-2 shadow-[0_4px_15px_rgba(0,0,0,0.15)]"
-        >
-          <ArrowDownLeft size={14} className="text-accent-cyan" />
-          <span>Deposit USDT</span>
-        </button>
 
-        <button
-          onClick={handleWithdrawClick}
-          className={`h-12 rounded-[18px] font-bold text-xs flex items-center justify-center gap-2 transition-all ${
-            hasUnlockedWithdrawal
-              ? 'bg-gradient-to-r from-accent-cyan to-accent-blue text-white shadow-[0_0_20px_rgba(0,229,255,0.2)] hover:shadow-[0_0_25px_rgba(0,229,255,0.35)] cursor-pointer'
-              : 'bg-white/5 border border-white/8 text-slate-500 hover:text-slate-400 active:scale-98 cursor-pointer'
-          }`}
-        >
-          {hasUnlockedWithdrawal ? (
-            <>
-              <ArrowUpRight size={14} className="text-white" />
-              <span>Withdraw Fund</span>
-            </>
-          ) : (
-            <>
-              <Lock size={13} className="text-slate-500" />
-              <span>Withdraw (Locked)</span>
-            </>
-          )}
-        </button>
-      </div>
 
       {/* Swap Center - Dynamic and Admin Controlled */}
       <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-3.5">

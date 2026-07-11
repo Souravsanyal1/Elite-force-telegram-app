@@ -39,6 +39,7 @@ export const Home: React.FC<HomeProps> = ({
   telegramUser,
   adminSettings: settings, // alias adminSettings to settings
 }) => {
+  void usdtBalance;
   const [isSpinning, setIsSpinning] = useState(false);
   const [clicks, setClicks] = useState<FloatingText[]>([]);
 
@@ -348,9 +349,11 @@ export const Home: React.FC<HomeProps> = ({
           <span className="text-[9px] text-slate-500">≈ {(efcBalance / (settings.swapRate || 1000)).toFixed(4)} EForce</span>
         </div>
         <div className="glass-panel p-4 rounded-[20px] border-white/5 flex flex-col gap-1">
-          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">USDT Balance</span>
-          <span className="text-xl font-black text-accent-success">${usdtBalance.toFixed(2)}</span>
-          <span className="text-[9px] text-slate-500">Referrals: {referralsCount}/{withdrawMinReferrals}</span>
+          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">EForce Tokens</span>
+          <span className="text-xl font-black text-accent-purple">{(dbUser?.tokens || 0).toLocaleString()}</span>
+          <span className="text-[9px] text-slate-500">
+            ≈ ${((dbUser?.tokens || 0) * (settings.eforceTokenValue || 0.05)).toFixed(2)} USDT
+          </span>
         </div>
       </div>
 
