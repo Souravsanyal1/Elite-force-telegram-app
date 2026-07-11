@@ -467,6 +467,7 @@ export default function App() {
             efcBalance={efcBalance} 
             showToast={showToast} 
             swapRate={adminSettings.swapRate} 
+            dbUser={dbUser}
           />
         );
       default:

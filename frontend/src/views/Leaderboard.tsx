@@ -9,9 +9,10 @@ interface LeaderboardProps {
   efcBalance: number;
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   swapRate: number;
+  dbUser?: FirestoreUser | null;
 }
 
-export const Leaderboard = ({ telegramUser, efcBalance, showToast, swapRate }: LeaderboardProps) => {
+export const Leaderboard = ({ telegramUser, efcBalance, showToast, swapRate, dbUser }: LeaderboardProps) => {
   const [topMiners, setTopMiners] = useState<FirestoreUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,7 +58,7 @@ export const Leaderboard = ({ telegramUser, efcBalance, showToast, swapRate }: L
       </div>
 
       {/* Current User Rank Card */}
-      {telegramUser && (
+      {telegramUser && dbUser?.leaderboardHidden !== true && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
