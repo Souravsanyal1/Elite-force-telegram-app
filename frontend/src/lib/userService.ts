@@ -328,7 +328,8 @@ export const getTotalUserCount = async (): Promise<number> => {
     const q = query(collection(db, USERS_COLLECTION));
     const snapshot = await getCountFromServer(q);
     return snapshot.data().count;
-  } catch {
+  } catch (err) {
+    console.error("Error in getTotalUserCount:", err);
     return 0;
   }
 };
@@ -347,7 +348,8 @@ export const getTodayNewUsersCount = async (): Promise<number> => {
     );
     const snap = await getCountFromServer(q);
     return snap.data().count;
-  } catch {
+  } catch (err) {
+    console.error("Error in getTodayNewUsersCount:", err);
     return 0;
   }
 };
@@ -379,7 +381,8 @@ export const getFlaggedUsersCount = async (): Promise<number> => {
     const q = query(collection(db, USERS_COLLECTION), where('flagCount', '>', 0));
     const snap = await getCountFromServer(q);
     return snap.data().count;
-  } catch {
+  } catch (err) {
+    console.error("Error in getFlaggedUsersCount:", err);
     return 0;
   }
 };
@@ -396,7 +399,8 @@ export const getBannedUsersCount = async (): Promise<number> => {
     );
     const snap = await getCountFromServer(q);
     return snap.data().count;
-  } catch {
+  } catch (err) {
+    console.error("Error in getBannedUsersCount:", err);
     return 0;
   }
 };
@@ -410,7 +414,8 @@ export const getPremiumUsersCount = async (): Promise<number> => {
     const q = query(collection(db, USERS_COLLECTION), where('isTelegramPremium', '==', true));
     const snap = await getCountFromServer(q);
     return snap.data().count;
-  } catch {
+  } catch (err) {
+    console.error("Error in getPremiumUsersCount:", err);
     return 0;
   }
 };
@@ -424,7 +429,8 @@ export const getAutoMinerUsersCount = async (): Promise<number> => {
     const q = query(collection(db, USERS_COLLECTION), where('autoMinerActive', '==', true));
     const snap = await getCountFromServer(q);
     return snap.data().count;
-  } catch {
+  } catch (err) {
+    console.error("Error in getAutoMinerUsersCount:", err);
     return 0;
   }
 };

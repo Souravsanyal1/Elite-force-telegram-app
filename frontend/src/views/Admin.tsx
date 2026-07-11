@@ -275,7 +275,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { label: 'Total Users', value: kpi.total, color: 'text-white', icon: '👥' },
               { label: 'Online Now', value: liveUserCount || kpi.online, color: 'text-accent-success', icon: '🟢' },
@@ -336,7 +336,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
           </div>
 
           {/* User List */}
-          <div className="flex flex-col gap-2 max-h-[360px] overflow-y-auto pr-0.5">
+          <div className="flex flex-col gap-2 max-h-[360px] md:max-h-[600px] overflow-y-auto pr-0.5">
             {usersList
               .filter(u =>
                 (u.firstName + ' ' + u.lastName).toLowerCase().includes(userSearch.toLowerCase()) ||

@@ -13,7 +13,7 @@ import { AdminLogin } from './views/AdminLogin';
 import { getTelegramWebAppData, type TelegramUser } from './lib/telegramUser';
 import { upsertUser, setUserOffline, syncPointsToFirestore, getOnlineUserCount, subscribeToUser, type FirestoreUser } from './lib/userService';
 import { subscribeToAdminSettings, DEFAULT_ADMIN_SETTINGS, type AdminSettings } from './lib/adminSettingsService';
-import { isFirebaseConfigured } from './lib/firebase';
+import { auth, isFirebaseConfigured } from './lib/firebase';
 
 interface Toast {
   id: number;
@@ -67,6 +67,7 @@ export default function App() {
 
   // Route and Auth parameters
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
+  const isAdminPath = currentPath === '/admin' || currentPath === '/admin-login';
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
     try {
       const session = localStorage.getItem('admin_session');
@@ -82,7 +83,7 @@ export default function App() {
 
   // Telegram environment parameters
   const [isTelegramWebview, setIsTelegramWebview] = useState(false);
-  const [bypassTelegramCheck, setBypassTelegramCheck] = useState(() => getPersisted('bypassTelegramCheck', false));
+  const [bypassTelegramCheck, setBypassTelegramCheck] = useState(() => getPersisted('bypassTelegramCheck', true));
 
   // Telegram user data (real from SDK or mock in dev)
   const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null);
@@ -311,6 +312,9 @@ export default function App() {
     setIsAdminAuthenticated(false);
     localStorage.removeItem('admin_session');
     localStorage.removeItem('isAdminAuthenticated');
+    if (isFirebaseConfigured()) {
+      auth.signOut().catch(() => {});
+    }
     window.history.pushState({}, '', '/admin-login');
     showToast("Logged out of Admin console.", "info");
   };
@@ -413,10 +417,12 @@ export default function App() {
 
     if (currentPath === '/admin-login') {
       return (
-        <AdminLogin 
-          onLoginSuccess={handleAdminLoginSuccess} 
-          showToast={showToast} 
-        />
+        <div className="w-full max-w-md mx-auto flex items-center justify-center min-h-[80vh] px-4">
+          <AdminLogin 
+            onLoginSuccess={handleAdminLoginSuccess} 
+            showToast={showToast} 
+          />
+        </div>
       );
     }
 
@@ -424,7 +430,7 @@ export default function App() {
       if (!isAdminAuthenticated) {
         // Protected redirect
         return (
-          <div className="flex flex-col items-center justify-center p-6 text-center min-h-[50vh]">
+          <div className="flex flex-col items-center justify-center p-6 text-center min-h-[50vh] w-full max-w-md mx-auto">
             <Lock size={36} className="text-accent-danger mb-4 animate-bounce" />
             <h2 className="text-lg font-black text-white uppercase mb-2">Access Denied</h2>
             <p className="text-xs text-slate-400 max-w-[280px] leading-relaxed mb-6">
@@ -440,8 +446,8 @@ export default function App() {
         );
       }
       return (
-        <div className="flex flex-col gap-4">
-          <div className="flex justify-between items-center px-5 pt-6">
+        <div className="flex flex-col gap-6 w-full h-full max-w-7xl mx-auto px-4 md:px-8 py-6">
+          <div className="flex justify-between items-center">
             <span className="text-[10px] font-black text-accent-cyan uppercase tracking-widest bg-accent-cyan/10 border border-accent-cyan/15 px-3 py-1 rounded-full">
               Console Session
             </span>
@@ -452,7 +458,7 @@ export default function App() {
               Sign Out
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto px-5 pb-10">
+          <div className="flex-1 overflow-y-auto pb-10 custom-scrollbar">
             <Admin 
               showToast={showToast} 
               liveUserCount={liveUserCount}
@@ -612,12 +618,18 @@ export default function App() {
 
       {/* 4. Main Application Structure */}
       {!loading && (
-        <div className="w-full h-full max-w-[430px] md:h-[840px] md:rounded-[36px] md:border-[6px] md:border-[#1E2338] md:shadow-[0_25px_80px_rgba(0,0,0,0.8),_0_0_0_1px_rgba(255,255,255,0.05),_0_0_40px_rgba(0,229,255,0.03)] bg-[#050816]/95 backdrop-blur-sm relative flex flex-col overflow-hidden">
+        <div className={
+          isAdminPath 
+            ? "w-full h-full min-h-screen bg-[#050816]/95 backdrop-blur-sm relative flex flex-col overflow-hidden"
+            : "w-full h-full max-w-[430px] md:h-[840px] md:rounded-[36px] md:border-[6px] md:border-[#1E2338] md:shadow-[0_25px_80px_rgba(0,0,0,0.8),_0_0_0_1px_rgba(255,255,255,0.05),_0_0_40px_rgba(0,229,255,0.03)] bg-[#050816]/95 backdrop-blur-sm relative flex flex-col overflow-hidden"
+        }>
           
           {/* Simulated Mobile Speaker Cutout on Desktop */}
-          <div className="hidden md:block absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-[#1E2338] rounded-b-2xl z-50">
-            <div className="w-12 h-1 bg-black rounded-full mx-auto mt-1.5"></div>
-          </div>
+          {!isAdminPath && (
+            <div className="hidden md:block absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-[#1E2338] rounded-b-2xl z-50">
+              <div className="w-12 h-1 bg-black rounded-full mx-auto mt-1.5"></div>
+            </div>
+          )}
 
           {/* Toast Notification Container */}
           <div className="absolute top-8 left-4 right-4 z-50 flex flex-col gap-2">
