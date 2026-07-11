@@ -242,8 +242,8 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
     <div className="flex flex-col gap-5 pb-28">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">Console</h1>
-        <p className="text-xs text-slate-400 mt-1">Global ecosystem parameters and management.</p>
+        <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight text-white">Console</h1>
+        <p className="text-xs md:text-sm text-slate-400 mt-1.5">Global ecosystem parameters and management.</p>
       </div>
 
       {/* Tab Bar */}
@@ -252,7 +252,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer ${
+            className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-wider border transition-all cursor-pointer ${
               activeTab === tab.id
                 ? 'bg-[#FF8A00] border-[#FF8A00] text-white'
                 : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
@@ -286,11 +286,11 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
               { label: 'Flagged Users', value: kpi.flagged, color: 'text-accent-warning', icon: '🚩' },
               { label: 'Banned Users', value: kpi.banned, color: 'text-accent-danger', icon: '🚫' },
             ].map((item) => (
-              <div key={item.label} className="glass-panel p-3.5 rounded-[18px] border-white/5 flex flex-col gap-1">
-                <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold flex items-center gap-1">
+              <div key={item.label} className="glass-panel p-4 md:p-6 rounded-[22px] border-white/5 flex flex-col gap-1.5 md:gap-2 shadow-lg">
+                <span className="text-[10px] md:text-xs text-slate-400 uppercase tracking-widest font-bold flex items-center gap-1.5">
                   <span>{item.icon}</span> {item.label}
                 </span>
-                <span className={`text-xl font-black font-display ${item.color}`}>
+                <span className={`text-xl md:text-3xl font-black font-display ${item.color}`}>
                   {loadingKpi ? '...' : item.value.toLocaleString()}
                 </span>
               </div>
@@ -298,14 +298,14 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
           </div>
 
           {/* Pending Withdrawals Quick View */}
-          <div className="glass-panel p-4 rounded-[20px] border-white/6">
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold block mb-3">
+          <div className="glass-panel p-5 md:p-8 rounded-[24px] border-white/6 flex flex-col gap-1.5 shadow-lg">
+            <span className="text-[10px] md:text-xs text-slate-400 uppercase tracking-widest font-bold block mb-1">
               💰 Pending Withdrawals
             </span>
-            <span className="text-2xl font-black text-[#FF8A00]">
+            <span className="text-2xl md:text-4xl font-black text-[#FF8A00]">
               {withdrawals.filter(w => w.status === 'Pending').length}
             </span>
-            <p className="text-[10px] text-slate-500 mt-1">awaiting approval</p>
+            <p className="text-[10px] md:text-xs text-slate-400">awaiting approval</p>
           </div>
         </div>
       )}

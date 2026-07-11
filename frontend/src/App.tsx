@@ -43,7 +43,6 @@ export default function App() {
   const [referralsCount, setReferralsCount] = useState<number>(() => getPersisted('referralsCount', 0));
   const [hasUnlockedWithdrawal, setHasUnlockedWithdrawal] = useState<boolean>(() => getPersisted('hasUnlockedWithdrawal', false));
   const [energy, setEnergy] = useState<number>(() => getPersisted('energy', 1000));
-  const [maxEnergy] = useState<number>(1000);
   
   // Admin-controlled settings (managed by Admin panel via Firestore)
   const [swapOpen, _setSwapOpen] = useState<boolean>(() => getPersisted('swapOpen', false));
@@ -100,6 +99,7 @@ export default function App() {
 
   // Global admin settings — single subscription for entire app
   const [adminSettings, setAdminSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS);
+  const maxEnergy = adminSettings.energyMax || 1000;
 
 
 
@@ -133,8 +133,8 @@ export default function App() {
       setTelegramUser(webAppData.user);
       telegramIdRef.current = webAppData.user.id;
 
-      // Upsert Firestore user doc only if real Telegram user or local development
-      if (isRealTelegramUser || isLocalhost) {
+      // Upsert Firestore user doc only if real Telegram user, local development, or PC mode bypass is active
+      if (isRealTelegramUser || isLocalhost || bypassTelegramCheck) {
         upsertUser(
           webAppData.user,
           {
@@ -150,12 +150,12 @@ export default function App() {
       }
     }
 
-    // Set user offline on tab/window close
-    const handleUnload = () => {
-      if (telegramIdRef.current && (isRealTelegramUser || isLocalhost)) {
-        setUserOffline(telegramIdRef.current);
-      }
-    };
+      // Set user offline on tab/window close
+      const handleUnload = () => {
+        if (telegramIdRef.current && (isRealTelegramUser || isLocalhost || bypassTelegramCheck)) {
+          setUserOffline(telegramIdRef.current);
+        }
+      };
     window.addEventListener('beforeunload', handleUnload);
     return () => window.removeEventListener('beforeunload', handleUnload);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -200,7 +200,7 @@ export default function App() {
     if (!telegramUser) return;
     const isRealTelegramUser = !!(window as any).Telegram?.WebApp?.initDataUnsafe?.user;
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    if (!isRealTelegramUser && !isLocalhost) return;
+    if (!isRealTelegramUser && !isLocalhost && !bypassTelegramCheck) return;
 
     const timeout = setTimeout(() => {
       lastSyncedPointsRef.current = efcBalance;
@@ -214,7 +214,7 @@ export default function App() {
     if (!telegramUser) return;
     const isRealTelegramUser = !!(window as any).Telegram?.WebApp?.initDataUnsafe?.user;
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    if (!isRealTelegramUser && !isLocalhost) return;
+    if (!isRealTelegramUser && !isLocalhost && !bypassTelegramCheck) return;
 
     const unsubscribe = subscribeToUser(telegramUser.id, (user) => {
       if (user) {
@@ -446,7 +446,7 @@ export default function App() {
         );
       }
       return (
-        <div className="flex flex-col gap-6 w-full h-full max-w-7xl mx-auto px-4 md:px-8 py-6">
+        <div className="flex flex-col gap-6 w-full h-full max-w-[1600px] mx-auto px-4 md:px-12 py-8">
           <div className="flex justify-between items-center">
             <span className="text-[10px] font-black text-accent-cyan uppercase tracking-widest bg-accent-cyan/10 border border-accent-cyan/15 px-3 py-1 rounded-full">
               Console Session
