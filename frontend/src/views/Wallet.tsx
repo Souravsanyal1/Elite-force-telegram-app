@@ -201,9 +201,6 @@ export const Wallet: React.FC<WalletProps> = ({
   const currentRefs = dbUser?.referrals || 0;
   const hasUnlockedWithdrawal = currentRefs >= withdrawMinReferrals;
 
-  void handleWithdrawClick;
-  void hasUnlockedWithdrawal;
-
   return (
     <div className="flex flex-col gap-5 pb-28">
       {/* View Header */}
@@ -303,41 +300,90 @@ export const Wallet: React.FC<WalletProps> = ({
 
 
 
-      {/* Swap Center - Dynamic and Admin Controlled */}
-      <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-3.5">
-        <div className="flex justify-between items-center">
-          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Swap Portal</span>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[9px] text-slate-400">Swap Status:</span>
-            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${
-              settings.swapOpen 
-                ? 'bg-accent-success/15 border-accent-success/20 text-accent-success' 
-                : 'bg-accent-danger/15 border-accent-danger/20 text-accent-danger'
-            }`}>
-              {settings.swapOpen ? 'Open' : 'Closed'}
-            </span>
+      {/* Swap & Withdraw Portal */}
+      <div className="glass-panel p-5 rounded-[24px] border-white/6 flex flex-col gap-4">
+        
+        {/* Swap Exchange Section */}
+        <div className="flex flex-col gap-3">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Swap Portal</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] text-slate-400">Swap Status:</span>
+              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${
+                settings.swapOpen 
+                  ? 'bg-accent-success/15 border-accent-success/20 text-accent-success' 
+                  : 'bg-accent-danger/15 border-accent-danger/20 text-accent-danger'
+              }`}>
+                {settings.swapOpen ? 'Open' : 'Closed'}
+              </span>
+            </div>
+          </div>
+
+          {settings.swapOpen ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-[11px] text-slate-400 leading-relaxed font-normal">
+                Convert your mined EForce Points to EForce utility tokens instantly. Current Conversion rate is <span className="text-accent-cyan font-bold">{swapRate} Points = 1 EForce Token</span> (Valued at <span className="text-accent-success font-bold">${settings.eforceTokenValue || 0.05} USDT</span>).
+              </p>
+              <button
+                onClick={() => setShowSwapModal(true)}
+                className="h-10 rounded-xl bg-gradient-to-r from-accent-purple to-accent-blue text-white text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer"
+              >
+                Configure Swap Exchange
+              </button>
+            </div>
+          ) : (
+            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 text-center flex flex-col gap-1.5">
+              <Lock className="text-slate-500 mx-auto" size={16} />
+              <span className="text-xs font-bold text-slate-400">Conversion Swapping Closed</span>
+              <p className="text-[10px] text-slate-500">The swap gateway is currently locked by ecosystem administrators.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div className="h-[1px] bg-white/5 w-full" />
+
+        {/* USDT Withdrawal Section */}
+        <div className="flex flex-col gap-3">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Withdraw Portal</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] text-slate-400">Status:</span>
+              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${
+                hasUnlockedWithdrawal 
+                  ? 'bg-accent-success/15 border-accent-success/20 text-accent-success' 
+                  : 'bg-accent-danger/15 border-accent-danger/20 text-accent-danger'
+              }`}>
+                {hasUnlockedWithdrawal ? 'Unlocked' : 'Locked'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <div className="flex justify-between items-center bg-white/[0.02] border border-white/5 rounded-xl px-3.5 py-2.5">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[9px] text-slate-500 uppercase font-semibold">Withdrawable Balance</span>
+                <span className="text-sm font-extrabold text-accent-success font-mono">${usdtBalance.toFixed(2)} USDT</span>
+              </div>
+              <div className="text-right flex flex-col gap-0.5">
+                <span className="text-[9px] text-slate-500 uppercase font-semibold">Requirement</span>
+                <span className="text-[10px] text-slate-300 font-bold">{currentRefs}/{withdrawMinReferrals} Affiliates</span>
+              </div>
+            </div>
+            
+            <p className="text-[11px] text-slate-400 leading-relaxed font-normal">
+              Withdraw your earned USDT commissions to your saved BEP-20 address. Minimum withdrawal amount is <span className="text-accent-cyan font-bold">${settings.withdrawMinAmount} USDT</span>.
+            </p>
+            
+            <button
+              onClick={handleWithdrawClick}
+              className="h-10 rounded-xl bg-gradient-to-r from-[#FF8A00] to-[#E52E71] text-white text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer"
+            >
+              Withdraw USDT
+            </button>
           </div>
         </div>
 
-        {settings.swapOpen ? (
-          <div className="flex flex-col gap-3">
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              Convert your mined EForce Points to EForce utility tokens instantly. Current Conversion rate is <span className="text-accent-cyan font-bold">{swapRate} Points = 1 EForce Token</span> (Valued at <span className="text-accent-success font-bold">${settings.eforceTokenValue || 0.05} USDT</span>).
-            </p>
-            <button
-              onClick={() => setShowSwapModal(true)}
-              className="h-10 rounded-xl bg-gradient-to-r from-accent-purple to-accent-blue text-white text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer"
-            >
-              Configure Swap Exchange
-            </button>
-          </div>
-        ) : (
-          <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 text-center flex flex-col gap-1.5">
-            <Lock className="text-slate-500 mx-auto" size={16} />
-            <span className="text-xs font-bold text-slate-400">Conversion Swapping Closed</span>
-            <p className="text-[10px] text-slate-500">The swap gateway is currently locked by ecosystem administrators.</p>
-          </div>
-        )}
       </div>
 
       {/* EForce Swap Modal */}
