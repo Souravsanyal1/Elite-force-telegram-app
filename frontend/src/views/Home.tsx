@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Trophy, Flame, ChevronRight, Zap, Play, Square, Star } from 'lucide-react';
+import { Sparkles, Trophy, Flame, ChevronRight, Zap, Play, Square } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getDisplayName, type TelegramUser } from '../lib/telegramUser';
 import { getLeaderboardUsers, recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, subscribeToUser, markUserStarted, upsertUser, type FirestoreUser } from '../lib/userService';
 import { type AdminSettings } from '../lib/adminSettingsService';
+import { VerifiedBadge } from '../components/VerifiedBadge';
 
 interface HomeProps {
   efcBalance: number;
@@ -313,11 +314,7 @@ export const Home: React.FC<HomeProps> = ({
         <div>
           <h1 className="text-xl font-black text-white tracking-tight flex items-center gap-1.5">
             Hey, {displayName.split(' ')[0]}
-            {(telegramUser?.isPremium || dbUser?.isTelegramPremium) && (
-              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-accent-cyan/15 border border-accent-cyan/35 text-accent-cyan shadow-[0_0_8px_rgba(0,229,255,0.25)] select-none">
-                <Star size={9} className="fill-current text-accent-cyan" />
-              </span>
-            )}
+            <VerifiedBadge size={14} className="shrink-0" />
             👋
           </h1>
           <p className="text-[10px] text-slate-500 mt-0.5 font-semibold uppercase tracking-widest">
