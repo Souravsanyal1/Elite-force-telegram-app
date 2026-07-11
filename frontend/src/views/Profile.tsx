@@ -1,14 +1,17 @@
-import { Copy, ShieldCheck, Trophy, Calendar, Globe2 } from 'lucide-react';
+import { Copy, ShieldCheck, Trophy, Calendar, Globe2, Laptop } from 'lucide-react';
 import { getDisplayName, type TelegramUser } from '../lib/telegramUser';
+import { type FirestoreUser } from '../lib/userService';
 
 interface ProfileProps {
   efcBalance: number;
-  connectedAddress: string | null;
+  dbUser: FirestoreUser | null;
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   telegramUser: TelegramUser | null;
 }
 
-export const Profile = ({ efcBalance, connectedAddress, showToast, telegramUser }: ProfileProps) => {
+export const Profile = ({ efcBalance, dbUser, showToast, telegramUser }: ProfileProps) => {
+  const connectedAddress = dbUser?.walletAddress || null;
+  
   const userAddress = connectedAddress 
     ? `${connectedAddress.slice(0, 8)}...${connectedAddress.slice(-8)}`
     : "No Wallet Connected";
@@ -22,10 +25,33 @@ export const Profile = ({ efcBalance, connectedAddress, showToast, telegramUser 
     showToast("Wallet address copied to clipboard!", "success");
   };
 
+  const formatTimestamp = (ts: any) => {
+    if (!ts) return 'Not Available';
+    try {
+      const date = typeof ts.toDate === 'function' 
+        ? ts.toDate() 
+        : (ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts));
+      
+      if (isNaN(date.getTime())) return 'Not Available';
+      return date.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+    } catch {
+      return 'Not Available';
+    }
+  };
+
+  const joinDateStr = formatTimestamp(dbUser?.joinDate || dbUser?.createdAt);
+  
+  const latestIp = dbUser?.ipHistory && dbUser.ipHistory.length > 0
+    ? dbUser.ipHistory[dbUser.ipHistory.length - 1]
+    : 'Unknown';
+
+  const country = dbUser?.country && dbUser.country !== 'Unknown' ? dbUser.country : 'BD';
+  const flag = country === 'BD' || country.toLowerCase().includes('bangladesh') ? '🇧🇩' : '🌍';
+
   const achievements = [
     { name: "First Mine", desc: "Mined EForce coin for the first time", completed: true, badgeColor: "text-accent-cyan" },
-    { name: "Affiliate Recruit", desc: "Invited 5 active members to the force", completed: true, badgeColor: "text-accent-purple" },
-    { name: "Node Authorizer", desc: "Unlocked cryptocurrency withdrawal gateway", completed: connectedAddress !== null, badgeColor: connectedAddress !== null ? "text-accent-gold" : "text-slate-500" },
+    { name: "Affiliate Recruit", desc: "Invited 5 active members to the force", completed: (dbUser?.referrals || 0) >= 5, badgeColor: (dbUser?.referrals || 0) >= 5 ? "text-accent-purple" : "text-slate-500" },
+    { name: "Node Authorizer", desc: "Saved custody wallet destination address", completed: connectedAddress !== null, badgeColor: connectedAddress !== null ? "text-accent-gold" : "text-slate-500" },
     { name: "Grandmaster Miner", desc: "Accumulated more than 10,000 EForce", completed: efcBalance >= 10000, badgeColor: efcBalance >= 10000 ? "text-accent-gold" : "text-slate-500" },
   ];
 
@@ -59,8 +85,8 @@ export const Profile = ({ efcBalance, connectedAddress, showToast, telegramUser 
             )}
           </div>
           {/* Country flag indicator */}
-          <div className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-[#12182D] border border-white/10 flex items-center justify-center text-[10px]" title="Bangladesh">
-            🇧🇩
+          <div className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-[#12182D] border border-white/10 flex items-center justify-center text-[10px]" title={country}>
+            {flag}
           </div>
         </div>
 
@@ -100,7 +126,7 @@ export const Profile = ({ efcBalance, connectedAddress, showToast, telegramUser 
         </div>
 
         <div className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-xl p-2.5">
-          <span className="text-xs font-mono text-slate-400">{userAddress}</span>
+          <span className="text-xs font-mono text-slate-400 truncate mr-2">{userAddress}</span>
           <button
             onClick={handleCopyAddress}
             disabled={!connectedAddress}
@@ -118,15 +144,26 @@ export const Profile = ({ efcBalance, connectedAddress, showToast, telegramUser 
             <Calendar size={13} />
             <span className="text-[10px] uppercase font-bold tracking-wider">Join Date</span>
           </div>
-          <span className="text-xs font-semibold text-white">05 July 2026</span>
+          <span className="text-xs font-semibold text-white">{joinDateStr}</span>
         </div>
         <div className="glass-panel p-4 rounded-[20px] border-white/5 flex flex-col gap-1">
           <div className="flex items-center gap-1.5 text-slate-500 mb-1">
             <Globe2 size={13} />
-            <span className="text-[10px] uppercase font-bold tracking-wider">IP Origin</span>
+            <span className="text-[10px] uppercase font-bold tracking-wider">Origin IP</span>
           </div>
-          <span className="text-xs font-semibold text-white">Dhaka, BD</span>
+          <span className="text-xs font-semibold text-white truncate">{latestIp}</span>
         </div>
+      </div>
+
+      {/* Device info node */}
+      <div className="glass-panel p-4 rounded-[20px] border-white/5 flex flex-col gap-1">
+        <div className="flex items-center gap-1.5 text-slate-500 mb-1">
+          <Laptop size={13} />
+          <span className="text-[10px] uppercase font-bold tracking-wider">Authorized Device</span>
+        </div>
+        <span className="text-xs font-semibold text-white">
+          {dbUser?.device?.os || 'Unknown OS'} • {dbUser?.device?.browser || 'Unknown Browser'}
+        </span>
       </div>
 
       {/* Achievements / Trophies */}

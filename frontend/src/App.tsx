@@ -401,7 +401,7 @@ export default function App() {
         return (
           <Profile 
             efcBalance={efcBalance} 
-            connectedAddress={connectedAddress}
+            dbUser={dbUser}
             showToast={showToast}
             telegramUser={telegramUser}
           />
