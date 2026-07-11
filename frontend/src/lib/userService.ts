@@ -90,12 +90,37 @@ export const upsertUser = async (
   telegramUser: TelegramUser,
   deviceInfo: { platform: string; browser: string; os: string; resolution: string; language: string; timezone: string },
   _localPoints: number,
-  deviceFingerprint = ''
+  deviceFingerprint = '',
+  clientIp = 'Unknown'
 ): Promise<void> => {
   if (!isFirebaseConfigured()) return;
 
   const userRef = doc(db, USERS_COLLECTION, String(telegramUser.id));
   const snap = await getDoc(userRef);
+
+  // Check if this IP is already used by another account (Multi-account detection)
+  let isMultiAccount = false;
+  if (clientIp !== 'Unknown') {
+    try {
+      const q = query(
+        collection(db, USERS_COLLECTION),
+        where('ipHistory', 'array-contains', clientIp)
+      );
+      const ipQuerySnap = await getDocs(q);
+      const matches = ipQuerySnap.docs.filter(d => d.id !== String(telegramUser.id));
+      if (matches.length > 0) {
+        isMultiAccount = true;
+        // Write security event for audit log
+        await setDoc(doc(db, 'securityEvents', `${telegramUser.id}_ip_overlap_${Date.now()}`), {
+          telegramId: telegramUser.id,
+          type: 'ip_overlap',
+          reason: `IP Overlap detected on ${clientIp} with account(s): ${matches.map(m => m.id).join(', ')}`,
+          severity: 'high',
+          createdAt: serverTimestamp(),
+        }).catch(() => {});
+      }
+    } catch { /* ignore query errors if rules block it, fallback to safe */ }
+  }
 
   if (!snap.exists()) {
     // Parse referral code from WebApp start param
@@ -111,6 +136,12 @@ export const upsertUser = async (
       }
     } catch { /* noop */ }
 
+    // If multi-account, start with 1 flag and temporary ban (24h)
+    const initialFlags = isMultiAccount ? 1 : 0;
+    const initialBanStatus = isMultiAccount ? 'temp' : 'none';
+    const initialBanUntil = isMultiAccount ? Timestamp.fromDate(new Date(Date.now() + 24 * 3600 * 1000)) : null;
+    const initialRiskLevel = isMultiAccount ? 'high' : 'safe';
+
     // Save user doc
     await setDoc(userRef, {
       telegramId: telegramUser.id,
@@ -124,7 +155,6 @@ export const upsertUser = async (
       isOnline: true,
       createdAt: serverTimestamp(),
       lastSeen: serverTimestamp(),
-      // hasStarted is false until user explicitly clicks the START button
       hasStarted: false,
       points: 0,
       tokens: 0,
@@ -137,12 +167,12 @@ export const upsertUser = async (
       lastClaimDate: null,
       autoMinerLastUsed: null,
       autoMinerActive: false,
-      flagCount: 0,
-      banStatus: 'none',
-      banUntil: null,
-      riskLevel: 'safe',
+      flagCount: initialFlags,
+      banStatus: initialBanStatus,
+      banUntil: initialBanUntil,
+      riskLevel: initialRiskLevel,
       deviceFingerprint,
-      ipHistory: [],
+      ipHistory: clientIp !== 'Unknown' ? [clientIp] : [],
       device: deviceInfo,
       totalDailyPoints: 0,
     });
@@ -152,7 +182,14 @@ export const upsertUser = async (
       await recordReferral(referredBy, telegramUser.id, deviceFingerprint).catch(() => {});
     }
   } else {
-    await updateDoc(userRef, {
+    const user = snap.data() as FirestoreUser;
+    const ipHistory = user.ipHistory || [];
+    if (clientIp !== 'Unknown' && !ipHistory.includes(clientIp)) {
+      ipHistory.push(clientIp);
+    }
+
+    // If new overlap detected, increment flags and apply temporary ban
+    let updateFields: any = {
       firstName: telegramUser.firstName || '',
       lastName: telegramUser.lastName || '',
       photoUrl: telegramUser.photoUrl || '',
@@ -160,8 +197,33 @@ export const upsertUser = async (
       isOnline: true,
       lastSeen: serverTimestamp(),
       device: deviceInfo,
+      ipHistory,
       ...(deviceFingerprint ? { deviceFingerprint } : {}),
-    });
+    };
+
+    if (isMultiAccount && user.banStatus === 'none') {
+      const newFlags = (user.flagCount || 0) + 1;
+      let newBanStatus: 'none' | 'temp' | 'permanent' = 'none';
+      let newBanUntil = null;
+      if (newFlags === 1) {
+        newBanStatus = 'temp';
+        newBanUntil = Timestamp.fromDate(new Date(Date.now() + 24 * 3600 * 1000));
+      } else if (newFlags === 2) {
+        newBanStatus = 'temp';
+        newBanUntil = Timestamp.fromDate(new Date(Date.now() + 48 * 3600 * 1000));
+      } else {
+        newBanStatus = 'permanent';
+      }
+      updateFields = {
+        ...updateFields,
+        flagCount: newFlags,
+        banStatus: newBanStatus,
+        banUntil: newBanUntil,
+        riskLevel: 'high',
+      };
+    }
+
+    await updateDoc(userRef, updateFields);
   }
 };
 
@@ -448,6 +510,7 @@ export const updateUserDatabaseValues = async (
     riskLevel?: 'safe' | 'medium' | 'high';
     flagCount?: number;
     banStatus?: 'none' | 'temp' | 'permanent';
+    banUntil?: Timestamp | null;
     walletAddress?: string;
   }
 ): Promise<boolean> => {

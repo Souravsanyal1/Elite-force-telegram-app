@@ -11,7 +11,7 @@ import { Settings } from './views/Settings';
 import { Admin } from './views/Admin';
 import { AdminLogin } from './views/AdminLogin';
 import { getTelegramWebAppData, type TelegramUser } from './lib/telegramUser';
-import { upsertUser, setUserOffline, syncPointsToFirestore, getOnlineUserCount, subscribeToUser, type FirestoreUser } from './lib/userService';
+import { upsertUser, setUserOffline, syncPointsToFirestore, getOnlineUserCount, subscribeToUser, checkUserBan, type FirestoreUser } from './lib/userService';
 import { subscribeToAdminSettings, DEFAULT_ADMIN_SETTINGS, type AdminSettings } from './lib/adminSettingsService';
 import { auth, isFirebaseConfigured } from './lib/firebase';
 
@@ -129,26 +129,40 @@ export default function App() {
     const isRealTelegramUser = !!(window as any).Telegram?.WebApp?.initDataUnsafe?.user;
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-    if (webAppData.user) {
-      setTelegramUser(webAppData.user);
-      telegramIdRef.current = webAppData.user.id;
+    const fetchIpAndUpsert = async () => {
+      let clientIp = 'Unknown';
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        if (ipRes.ok) {
+          const ipData = await ipRes.json();
+          clientIp = ipData.ip || 'Unknown';
+        }
+      } catch { /* noop */ }
 
-      // Upsert Firestore user doc only if real Telegram user, local development, or PC mode bypass is active
-      if (isRealTelegramUser || isLocalhost || bypassTelegramCheck) {
-        upsertUser(
-          webAppData.user,
-          {
-            platform: navigator.platform || 'Web',
-            browser: detectedBrowser,
-            os: detectedOS,
-            resolution: `${window.screen.width}x${window.screen.height}`,
-            language: navigator.language || 'en',
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-          },
-          efcBalance
-        ).catch(() => {});
+      if (webAppData.user) {
+        setTelegramUser(webAppData.user);
+        telegramIdRef.current = webAppData.user.id;
+
+        // Upsert Firestore user doc only if real Telegram user, local development, or PC mode bypass is active
+        if (isRealTelegramUser || isLocalhost || bypassTelegramCheck) {
+          upsertUser(
+            webAppData.user,
+            {
+              platform: navigator.platform || 'Web',
+              browser: detectedBrowser,
+              os: detectedOS,
+              resolution: `${window.screen.width}x${window.screen.height}`,
+              language: navigator.language || 'en',
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+            },
+            efcBalance,
+            '',
+            clientIp
+          ).catch(() => {});
+        }
       }
-    }
+    };
+    fetchIpAndUpsert();
 
       // Set user offline on tab/window close
       const handleUnload = () => {
@@ -499,16 +513,38 @@ export default function App() {
     }
 
     // Block flagged or banned users from accessing the app features
-    const isRestricted = dbUser && (dbUser.flagCount > 0 || dbUser.banStatus !== 'none');
+    const banInfo = dbUser ? checkUserBan(dbUser) : { banned: false };
+    const isRestricted = banInfo.banned;
 
     if (isRestricted) {
+      let banTimeLeft = '';
+      if (banInfo.until) {
+        const remainingMs = banInfo.until.getTime() - Date.now();
+        if (remainingMs > 0) {
+          const hrs = Math.floor(remainingMs / 3600000);
+          const mins = Math.floor((remainingMs % 3600000) / 60000);
+          banTimeLeft = `${hrs}h ${mins}m`;
+        }
+      }
+
       return (
         <div className="flex flex-col items-center justify-center p-8 text-center min-h-[60vh] select-none">
           <ShieldAlert size={52} className="text-accent-danger mb-4 animate-pulse" />
           <h2 className="text-xl font-black text-white tracking-wide uppercase mb-2">Access Restricted 🚩</h2>
-          <p className="text-xs text-slate-400 max-w-[280px] leading-relaxed mb-6">
+          <p className="text-xs text-slate-400 max-w-[280px] leading-relaxed mb-4">
             Your account access has been suspended or restricted due to suspicious activities or policy violation. You cannot mine EForce points or use other ecosystem services.
           </p>
+          {banTimeLeft ? (
+            <div className="bg-[#FF8A00]/10 border border-[#FF8A00]/25 rounded-2xl p-3.5 mt-2 w-full max-w-[280px]">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">Ban Lift Countdown</span>
+              <span className="text-lg font-black text-[#FF8A00] block mt-1">{banTimeLeft} remaining</span>
+            </div>
+          ) : (
+            <div className="bg-accent-danger/10 border border-accent-danger/25 rounded-2xl p-3.5 mt-2 w-full max-w-[280px]">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Ban Status</span>
+              <span className="text-sm font-black text-accent-danger block mt-1">Permanent Suspension</span>
+            </div>
+          )}
         </div>
       );
     }

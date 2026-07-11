@@ -18,18 +18,47 @@ function escapeMarkdownV2(text) {
   return text.replace(/[_*[\]()~`>#+-=|{}.!]/g, '\\$&');
 }
 
-bot.start((ctx) => {
+bot.start(async (ctx) => {
   const username = escapeMarkdownV2(ctx.from.first_name || 'Force Agent');
   const payload = ctx.startPayload || '';
   // Append tgWebAppStartParam so Telegram WebApp SDK populates initDataUnsafe.start_param
   const finalUrl = payload ? `${webAppUrl}?tgWebAppStartParam=${payload}` : webAppUrl;
   
-  ctx.replyWithMarkdownV2(
+  await ctx.replyWithMarkdownV2(
     `🛸 *Welcome to Elite Force \\(EFC\\), ${username}\\!* 🛸\n\nElite Force is a next\\-generation premium Web3 ecosystem\\.\n\nTap the button below to launch the Mini App and access your luxury dashboard\\!`,
     Markup.inlineKeyboard([
       [Markup.button.webApp('🚀 Launch Elite Force App', finalUrl)]
     ])
-  );
+  ).catch((err) => console.error('Error replying start welcome:', err));
+
+  // Handle referral notification if payload is a referral link
+  if (payload.startsWith('ref_')) {
+    const inviterId = parseInt(payload.replace('ref_', ''), 10);
+    if (!isNaN(inviterId) && inviterId !== ctx.from.id) {
+      try {
+        // Get inviter details
+        const inviterChat = await ctx.telegram.getChat(inviterId).catch(() => null);
+        const inviterName = inviterChat ? (inviterChat.first_name || inviterChat.username || 'your sponsor') : 'your sponsor';
+        const inviterUsername = inviterChat && inviterChat.username ? `@${escapeMarkdownV2(inviterChat.username)}` : 'your sponsor';
+
+        // Notify inviter (referrer)
+        const inviteeUsername = ctx.from.username ? `@${escapeMarkdownV2(ctx.from.username)}` : escapeMarkdownV2(ctx.from.first_name || 'A user');
+        await bot.telegram.sendMessage(
+          inviterId,
+          `🛸 *New Referral Registered\\!* 🛸\n\nUser ${inviteeUsername} has registered under your link\\. You will receive your referral reward as soon as they start mining\\!`,
+          { parse_mode: 'MarkdownV2' }
+        ).catch(() => {});
+
+        // Notify invitee (referee)
+        await ctx.replyWithMarkdownV2(
+          `🔗 *Referral Linked\\!*\n\nYou have joined under sponsor *${escapeMarkdownV2(inviterName)}* \\(${inviterUsername}\\)\\. Welcome to the Elite Force team\\!`
+        ).catch(() => {});
+
+      } catch (err) {
+        console.error('Error handling dual referral telegram notifications:', err);
+      }
+    }
+  }
 });
 
 bot.command('app', (ctx) => {

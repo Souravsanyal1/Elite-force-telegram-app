@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Timestamp } from 'firebase/firestore';
 import {
   TrendingUp, Users, Check, X, Search, Ban, Edit3, Save,
   RefreshCw, Shield, Plus, Trash2, ToggleLeft, ToggleRight,
@@ -74,6 +75,8 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
   const [editWallet, setEditWallet] = useState(0);
   const [editReferrals, setEditReferrals] = useState(0);
   const [editRiskLevel, setEditRiskLevel] = useState<'safe' | 'medium' | 'high'>('safe');
+  const [editBanStatus, setEditBanStatus] = useState<'none' | 'temp' | 'permanent'>('none');
+  const [editBanDuration, setEditBanDuration] = useState<number>(24);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [savingUser, setSavingUser] = useState(false);
 
@@ -93,25 +96,40 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
     setEditWallet(u.wallet ?? 0);
     setEditReferrals(u.referrals ?? 0);
     setEditRiskLevel(u.riskLevel ?? 'safe');
+    setEditBanStatus(u.banStatus ?? 'none');
+
+    // Calculate initial duration if temp banned
+    if (u.banStatus === 'temp' && u.banUntil) {
+      const until = u.banUntil instanceof Timestamp ? u.banUntil.toDate() : new Date(u.banUntil as string);
+      const diffHrs = Math.max(1, Math.round((until.getTime() - Date.now()) / (3600 * 1000)));
+      setEditBanDuration(diffHrs === 48 ? 48 : diffHrs === 72 ? 72 : 24);
+    } else {
+      setEditBanDuration(24);
+    }
   };
 
   const handleSaveUser = async () => {
     if (!editingUser) return;
     setSavingUser(true);
+
+    let banUntil = null;
+    if (editBanStatus === 'temp') {
+      banUntil = Timestamp.fromDate(new Date(Date.now() + editBanDuration * 3600 * 1000));
+    }
+
     const ok = await updateUserDatabaseValues(editingUser.telegramId, {
       points: editPoints,
       tokens: editTokens,
       wallet: editWallet,
       referrals: editReferrals,
       riskLevel: editRiskLevel,
+      banStatus: editBanStatus,
+      banUntil: banUntil,
     });
     setSavingUser(false);
     if (ok) {
       showToast(`✅ ${editingUser.firstName} updated.`, 'success');
-      setUsersList(prev => prev.map(u => u.telegramId === editingUser.telegramId
-        ? { ...u, points: editPoints, tokens: editTokens, wallet: editWallet, referrals: editReferrals, riskLevel: editRiskLevel }
-        : u
-      ));
+      fetchUsers(); // Refresh list to get updated banStatus and banUntil
       setEditingUser(null);
     } else {
       showToast('Error updating user.', 'error');
@@ -359,7 +377,9 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
                         {u.banStatus !== 'none' && <span className="text-[10px] text-accent-danger font-extrabold uppercase bg-accent-danger/10 px-2 py-0.5 border border-accent-danger/25 rounded">BANNED</span>}
                         {u.flagCount > 0 && <span className="text-[10px] text-accent-warning font-extrabold bg-accent-warning/10 px-2 py-0.5 border border-accent-warning/25 rounded">🚩{u.flagCount}</span>}
                       </div>
-                      <span className="text-xs text-slate-400 block mt-1">@{u.username || 'no_username'} • {u.telegramId}</span>
+                      <span className="text-xs text-slate-400 block mt-1">
+                        @{u.username || 'no_username'} • {u.telegramId} • IP: {u.ipHistory && u.ipHistory.length > 0 ? u.ipHistory[u.ipHistory.length - 1] : 'No IP'}
+                      </span>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <span className="text-xs md:text-sm font-black text-accent-cyan">{(u.points || 0).toLocaleString()} EF</span>
@@ -445,6 +465,34 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
                       <option value="high">🔴 High Risk</option>
                     </select>
                   </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs text-slate-400 font-bold uppercase tracking-wide">Ban Status</label>
+                    <select
+                      value={editBanStatus}
+                      onChange={e => setEditBanStatus(e.target.value as 'none' | 'temp' | 'permanent')}
+                      className="bg-[#12182D] border border-white/8 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan cursor-pointer"
+                    >
+                      <option value="none">🟢 Active (No Ban)</option>
+                      <option value="temp">🟡 Temporary Ban</option>
+                      <option value="permanent">🔴 Permanent Ban</option>
+                    </select>
+                  </div>
+
+                  {editBanStatus === 'temp' && (
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs text-slate-400 font-bold uppercase tracking-wide">Ban Duration</label>
+                      <select
+                        value={editBanDuration}
+                        onChange={e => setEditBanDuration(Number(e.target.value))}
+                        className="bg-[#12182D] border border-white/8 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan cursor-pointer"
+                      >
+                        <option value={24}>24 Hours</option>
+                        <option value={48}>48 Hours</option>
+                        <option value={72}>72 Hours</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <button
