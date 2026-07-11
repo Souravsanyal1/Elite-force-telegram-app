@@ -1,11 +1,15 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import {
-  TrendingUp, Users, Check, X, Search, Ban, Edit3, Save,
-  RefreshCw, Shield, Plus, Trash2, ToggleLeft, ToggleRight,
-  Settings, DollarSign, Zap, Star,
+  Check, X, Search, Ban, Edit3, Save,
+  RefreshCw, Plus, Trash2, ToggleLeft, ToggleRight,
+  DollarSign, Star,
 } from 'lucide-react';
 import { VerifiedBadge } from '../components/VerifiedBadge';
+import { AdminSidebar } from '../components/admin/AdminSidebar';
+import { AdminHeader } from '../components/admin/AdminHeader';
+import { AdminDashboard } from '../components/admin/AdminDashboard';
+import type { AdminTab } from '../components/admin/AdminSidebar';
 import {
   getAllUsers, updateUserDatabaseValues, getTotalUserCount,
   getTodayNewUsersCount, getFlaggedUsersCount, getBannedUsersCount,
@@ -20,8 +24,6 @@ import {
   subscribeToAdminSettings, saveAdminSettings, DEFAULT_ADMIN_SETTINGS, type AdminSettings,
 } from '../lib/adminSettingsService';
 
-type AdminTab = 'dashboard' | 'users' | 'tasks' | 'withdrawals' | 'security' | 'settings';
-
 interface AdminProps {
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   liveUserCount: number;
@@ -29,6 +31,7 @@ interface AdminProps {
 
 export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // --- Dashboard KPIs ---
   const [kpi, setKpi] = useState({
@@ -40,24 +43,10 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
   const fetchKpis = async () => {
     setLoadingKpi(true);
     const [total, online, premium, newToday, flagged, banned, autoMiners] = await Promise.all([
-      getTotalUserCount(),
-      getOnlineUserCount(),
-      getPremiumUsersCount(),
-      getTodayNewUsersCount(),
-      getFlaggedUsersCount(),
-      getBannedUsersCount(),
-      getAutoMinerUsersCount(),
+      getTotalUserCount(), getOnlineUserCount(), getPremiumUsersCount(),
+      getTodayNewUsersCount(), getFlaggedUsersCount(), getBannedUsersCount(), getAutoMinerUsersCount(),
     ]);
-    setKpi({
-      total,
-      online,
-      premium,
-      normal: Math.max(0, total - premium),
-      newToday,
-      flagged,
-      banned,
-      autoMiners,
-    });
+    setKpi({ total, online, premium, normal: Math.max(0, total - premium), newToday, flagged, banned, autoMiners });
     setLoadingKpi(false);
   };
 
@@ -98,43 +87,28 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
     setEditReferrals(u.referrals ?? 0);
     setEditRiskLevel(u.riskLevel ?? 'safe');
     setEditBanStatus(u.banStatus ?? 'none');
-
-    // Calculate initial duration if temp banned
     if (u.banStatus === 'temp' && u.banUntil) {
       const until = u.banUntil instanceof Timestamp ? u.banUntil.toDate() : new Date(u.banUntil as string);
       const diffHrs = Math.max(1, Math.round((until.getTime() - Date.now()) / (3600 * 1000)));
       setEditBanDuration(diffHrs === 48 ? 48 : diffHrs === 72 ? 72 : 24);
-    } else {
-      setEditBanDuration(24);
-    }
+    } else { setEditBanDuration(24); }
   };
 
   const handleSaveUser = async () => {
     if (!editingUser) return;
     setSavingUser(true);
-
     let banUntil = null;
     if (editBanStatus === 'temp') {
       banUntil = Timestamp.fromDate(new Date(Date.now() + editBanDuration * 3600 * 1000));
     }
-
     const ok = await updateUserDatabaseValues(editingUser.telegramId, {
-      points: editPoints,
-      tokens: editTokens,
-      wallet: editWallet,
-      referrals: editReferrals,
-      riskLevel: editRiskLevel,
-      banStatus: editBanStatus,
-      banUntil: banUntil,
+      points: editPoints, tokens: editTokens, wallet: editWallet,
+      referrals: editReferrals, riskLevel: editRiskLevel,
+      banStatus: editBanStatus, banUntil: banUntil,
     });
     setSavingUser(false);
-    if (ok) {
-      showToast(`✅ ${editingUser.firstName} updated.`, 'success');
-      fetchUsers(); // Refresh list to get updated banStatus and banUntil
-      setEditingUser(null);
-    } else {
-      showToast('Error updating user.', 'error');
-    }
+    if (ok) { showToast(`✅ ${editingUser.firstName} updated.`, 'success'); fetchUsers(); setEditingUser(null); }
+    else { showToast('Error updating user.', 'error'); }
   };
 
   const handleFlagUser = async (u: FirestoreUser) => {
@@ -142,13 +116,11 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
     showToast(`🚩 ${u.firstName} flagged.`, 'warning');
     fetchUsers();
   };
-
   const handleBanUser = async (u: FirestoreUser) => {
     await adminSetBan(u.telegramId, 'permanent');
     showToast(`🚫 ${u.firstName} permanently banned.`, 'error');
     fetchUsers();
   };
-
   const handleUnbanUser = async (u: FirestoreUser) => {
     await adminSetBan(u.telegramId, 'none');
     showToast(`✅ ${u.firstName} unbanned.`, 'success');
@@ -166,16 +138,10 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
     isEnabled: true, autoApprove: true,
   });
 
-  useEffect(() => {
-    const unsub = subscribeToTasks(setTasks);
-    return unsub;
-  }, []);
+  useEffect(() => { const unsub = subscribeToTasks(setTasks); return unsub; }, []);
 
   const handleSaveTask = async () => {
-    const taskData = {
-      ...taskForm,
-      expiryDate: taskForm.expiryDate || null,
-    };
+    const taskData = { ...taskForm, expiryDate: taskForm.expiryDate || null };
     if (editingTask) {
       const ok = await updateTask(editingTask.id, taskData);
       ok ? showToast('Task updated.', 'success') : showToast('Failed to update.', 'error');
@@ -183,8 +149,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
       const id = await createTask(taskData);
       id ? showToast('Task created.', 'success') : showToast('Failed to create.', 'error');
     }
-    setShowTaskForm(false);
-    setEditingTask(null);
+    setShowTaskForm(false); setEditingTask(null);
     setTaskForm({ title: '', description: '', type: 'channel', reward: 500, tokenReward: 0, url: '', dailyLimit: 0, totalCompletionLimit: 0, expiryDate: '', isEnabled: true, autoApprove: true });
   };
 
@@ -200,19 +165,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
 
   const startEditTask = (task: EForceTask) => {
     setEditingTask(task);
-    setTaskForm({
-      title: task.title,
-      description: task.description,
-      type: task.type,
-      reward: task.reward,
-      tokenReward: task.tokenReward,
-      url: task.url,
-      dailyLimit: task.dailyLimit,
-      totalCompletionLimit: task.totalCompletionLimit,
-      expiryDate: task.expiryDate || '',
-      isEnabled: task.isEnabled,
-      autoApprove: task.autoApprove,
-    });
+    setTaskForm({ title: task.title, description: task.description, type: task.type, reward: task.reward, tokenReward: task.tokenReward, url: task.url, dailyLimit: task.dailyLimit, totalCompletionLimit: task.totalCompletionLimit, expiryDate: task.expiryDate || '', isEnabled: task.isEnabled, autoApprove: task.autoApprove });
     setShowTaskForm(true);
   };
 
@@ -220,10 +173,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [withdrawFilter, setWithdrawFilter] = useState<'all' | 'Pending' | 'Approved' | 'Rejected' | 'Banned'>('Pending');
 
-  useEffect(() => {
-    const unsub = subscribeToWithdrawRequests(setWithdrawals);
-    return unsub;
-  }, []);
+  useEffect(() => { const unsub = subscribeToWithdrawRequests(setWithdrawals); return unsub; }, []);
 
   const handleWithdrawAction = async (reqId: string, status: 'Approved' | 'Rejected' | 'Banned') => {
     const ok = await updateWithdrawRequest(reqId, status);
@@ -234,10 +184,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
   const [settings, setSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
 
-  useEffect(() => {
-    const unsub = subscribeToAdminSettings(setSettings);
-    return unsub;
-  }, []);
+  useEffect(() => { const unsub = subscribeToAdminSettings(setSettings); return unsub; }, []);
 
   const handleSaveSettings = async () => {
     setSavingSettings(true);
@@ -246,641 +193,497 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
     ok ? showToast('⚙️ Settings saved to Firestore.', 'success') : showToast('Failed to save settings.', 'error');
   };
 
+  const filteredUsers = usersList.filter(u => {
+    const q = userSearch.toLowerCase();
+    return u.firstName?.toLowerCase().includes(q) || u.username?.toLowerCase().includes(q) || String(u.telegramId).includes(q);
+  });
+
   // ============ RENDER ============
-
-  const tabConfig: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: <TrendingUp size={12} /> },
-    { id: 'users', label: 'Users', icon: <Users size={12} /> },
-    { id: 'tasks', label: 'Tasks', icon: <Zap size={12} /> },
-    { id: 'withdrawals', label: 'Withdrawals', icon: <DollarSign size={12} /> },
-    { id: 'security', label: 'Security', icon: <Shield size={12} /> },
-    { id: 'settings', label: 'Settings', icon: <Settings size={12} /> },
-  ];
-
   return (
-    <div className="flex flex-col gap-5 pb-28">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight text-white">Console</h1>
-        <p className="text-xs md:text-sm text-slate-400 mt-1.5">Global ecosystem parameters and management.</p>
-      </div>
+    <div className="flex h-screen overflow-hidden" style={{ background: '#0A0E18' }}>
+      {/* Sidebar */}
+      <AdminSidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        eforceTokenValue={settings.eforceTokenValue}
+      />
 
-      {/* Tab Bar */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-        {tabConfig.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-wider border transition-all cursor-pointer ${
-              activeTab === tab.id
-                ? 'bg-[#FF8A00] border-[#FF8A00] text-white'
-                : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Header */}
+        <AdminHeader
+          activeTab={activeTab}
+          onMenuClick={() => setSidebarOpen(true)}
+          pendingCount={withdrawals.filter(w => w.status === 'Pending').length}
+          flaggedCount={kpi.flagged}
+          onRefresh={fetchKpis}
+          isRefreshing={loadingKpi}
+        />
 
-      {/* ============ DASHBOARD TAB ============ */}
-      {activeTab === 'dashboard' && (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Real-Time KPIs</span>
-            <button onClick={fetchKpis} disabled={loadingKpi} className="flex items-center gap-1 text-[9px] text-slate-400 hover:text-accent-cyan transition-colors">
-              <RefreshCw size={10} className={loadingKpi ? 'animate-spin' : ''} />
-              Refresh
-            </button>
-          </div>
+        {/* Scrollable content */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-5" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { label: 'Total Users', value: kpi.total, color: 'text-white', icon: '👥' },
-              { label: 'Online Now', value: liveUserCount || kpi.online, color: 'text-accent-success', icon: '🟢' },
-              { label: 'Premium Users', value: kpi.premium, color: 'text-accent-cyan', icon: '⭐' },
-              { label: 'Normal Users', value: kpi.normal, color: 'text-slate-300', icon: '👤' },
-              { label: "Today's New", value: kpi.newToday, color: 'text-accent-blue', icon: '📈' },
-              { label: 'Auto Miners', value: kpi.autoMiners, color: 'text-accent-purple', icon: '⛏️' },
-              { label: 'Flagged Users', value: kpi.flagged, color: 'text-accent-warning', icon: '🚩' },
-              { label: 'Banned Users', value: kpi.banned, color: 'text-accent-danger', icon: '🚫' },
-            ].map((item) => (
-              <div key={item.label} className="glass-panel p-4 md:p-6 rounded-[22px] border-white/5 flex flex-col gap-1.5 md:gap-2 shadow-lg">
-                <span className="text-[10px] md:text-xs text-slate-400 uppercase tracking-widest font-bold flex items-center gap-1.5">
-                  <span>{item.icon}</span> {item.label}
-                </span>
-                <span className={`text-xl md:text-3xl font-black font-display ${item.color}`}>
-                  {loadingKpi ? '...' : item.value.toLocaleString()}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Pending Withdrawals Quick View */}
-          <div className="glass-panel p-5 md:p-8 rounded-[24px] border-white/6 flex flex-col gap-1.5 shadow-lg">
-            <span className="text-[10px] md:text-xs text-slate-400 uppercase tracking-widest font-bold block mb-1">
-              💰 Pending Withdrawals
-            </span>
-            <span className="text-2xl md:text-4xl font-black text-[#FF8A00]">
-              {withdrawals.filter(w => w.status === 'Pending').length}
-            </span>
-            <p className="text-[10px] md:text-xs text-slate-400">awaiting approval</p>
-          </div>
-        </div>
-      )}
-
-      {/* ============ USERS TAB ============ */}
-      {activeTab === 'users' && (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
-              User Database ({usersList.length})
-            </span>
-            <button onClick={fetchUsers} disabled={loadingUsers} className="flex items-center gap-1 text-[9px] text-slate-400 hover:text-accent-cyan transition-colors">
-              <RefreshCw size={10} className={loadingUsers ? 'animate-spin' : ''} />
-              {loadingUsers ? 'Loading...' : 'Refresh'}
-            </button>
-          </div>
-
-          {/* Search */}
-          <div className="flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 max-w-md">
-            <Search size={12} className="text-slate-500 shrink-0" />
-            <input
-              type="text"
-              placeholder="Search by name, username or Telegram ID..."
-              value={userSearch}
-              onChange={(e) => setUserSearch(e.target.value)}
-              className="bg-transparent border-none outline-none text-[11px] text-slate-300 w-full placeholder-slate-500"
+          {/* ===== DASHBOARD ===== */}
+          {activeTab === 'dashboard' && (
+            <AdminDashboard
+              kpi={kpi}
+              loadingKpi={loadingKpi}
+              liveUserCount={liveUserCount}
+              withdrawals={withdrawals}
+              usersList={usersList}
+              onRefresh={fetchKpis}
+              eforceTokenValue={settings.eforceTokenValue}
             />
-          </div>
+          )}
 
-          {/* User List */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-[360px] md:max-h-[600px] overflow-y-auto pr-0.5 custom-scrollbar">
-            {usersList
-              .filter(u =>
-                (u.firstName + ' ' + u.lastName).toLowerCase().includes(userSearch.toLowerCase()) ||
-                u.username?.toLowerCase().includes(userSearch.toLowerCase()) ||
-                String(u.telegramId).includes(userSearch)
-              )
-              .map((u) => (
-                <div key={u.telegramId} className="glass-panel p-5 md:p-6 rounded-[22px] border-white/5 shadow-md flex flex-col gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-[#1A1F37] border border-white/10 shrink-0 flex items-center justify-center text-sm md:text-base font-bold text-slate-300 overflow-hidden">
-                      {u.photoUrl
-                        ? <img src={u.photoUrl} alt="" className="w-full h-full object-cover" />
-                        : (u.firstName?.[0] ?? 'E').toUpperCase()
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm md:text-base font-bold text-white truncate">{u.firstName} {u.lastName}</span>
-                        <VerifiedBadge size={13} className="shrink-0" />
-                        {u.isTelegramPremium && <Star size={12} className="text-accent-cyan fill-current shrink-0" />}
-                        {u.banStatus !== 'none' && <span className="text-[10px] text-accent-danger font-extrabold uppercase bg-accent-danger/10 px-2 py-0.5 border border-accent-danger/25 rounded">BANNED</span>}
-                        {u.flagCount > 0 && <span className="text-[10px] text-accent-warning font-extrabold bg-accent-warning/10 px-2 py-0.5 border border-accent-warning/25 rounded">🚩{u.flagCount}</span>}
+          {/* ===== USERS ===== */}
+          {activeTab === 'users' && (
+            <div className="flex flex-col gap-4">
+              {/* Search + refresh */}
+              <div className="flex gap-3 items-center">
+                <div className="flex-1 relative">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    value={userSearch}
+                    onChange={e => setUserSearch(e.target.value)}
+                    placeholder="Search by name, username, ID..."
+                    className="w-full pl-9 pr-4 h-9 rounded-xl text-xs text-white outline-none"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+                  />
+                </div>
+                <button onClick={fetchUsers} className="h-9 px-4 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-2 transition-all" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <RefreshCw size={12} className={loadingUsers ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              </div>
+
+              {/* User cards */}
+              {loadingUsers ? (
+                <div className="text-center py-10 text-slate-500 text-xs">Loading users...</div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {filteredUsers.map(u => (
+                    <div key={u.telegramId} className="rounded-[16px] p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="flex items-start gap-3">
+                        {/* Avatar */}
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FF8A00]/30 to-[#FFB347]/20 flex items-center justify-center text-sm font-bold text-[#FF8A00] shrink-0">
+                          {(u.firstName?.[0] ?? 'E').toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-bold text-white">{u.firstName} {u.lastName}</span>
+                            <VerifiedBadge size={13} className="shrink-0" />
+                            {u.isTelegramPremium && <Star size={12} className="text-accent-cyan fill-current shrink-0" />}
+                            {u.banStatus !== 'none' && <span className="text-[9px] text-red-400 font-extrabold uppercase bg-red-400/10 px-2 py-0.5 border border-red-400/20 rounded">BANNED</span>}
+                            {u.flagCount > 0 && <span className="text-[9px] text-yellow-400 font-extrabold bg-yellow-400/10 px-2 py-0.5 border border-yellow-400/20 rounded">🚩{u.flagCount}</span>}
+                          </div>
+                          <span className="text-[10px] text-slate-500 block mt-0.5">
+                            @{u.username || 'no_username'} • {u.telegramId}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-end gap-0.5 shrink-0">
+                          <span className="text-xs font-black text-[#FF8A00]">{(u.points || 0).toLocaleString()} EF</span>
+                          <span className="text-[9px] text-slate-500">{(u.tokens || 0)} tokens</span>
+                        </div>
                       </div>
-                      <span className="text-xs text-slate-400 block mt-1">
-                        @{u.username || 'no_username'} • {u.telegramId} • IP: {u.ipHistory && u.ipHistory.length > 0 ? u.ipHistory[u.ipHistory.length - 1] : 'No IP'}
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <span className="text-xs md:text-sm font-black text-accent-cyan">{(u.points || 0).toLocaleString()} EF</span>
-                      <span className="text-[10px] md:text-xs text-slate-400 font-bold">${(u.wallet ?? 0).toFixed(2)} USDT</span>
-                    </div>
-                  </div>
 
-                  {/* Action buttons */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => startEditUser(u)}
-                      className="flex-1 h-9 rounded-xl bg-white/5 border border-white/8 text-xs font-bold text-slate-300 hover:text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                    >
-                      <Edit3 size={12} /> Edit
-                    </button>
-                    <button
-                      onClick={() => handleFlagUser(u)}
-                      className="flex-1 h-9 rounded-xl bg-accent-warning/10 border border-accent-warning/20 text-xs font-bold text-accent-warning hover:bg-accent-warning/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                    >
-                      🚩 Flag
-                    </button>
-                    {u.banStatus !== 'none' ? (
-                      <button
-                        onClick={() => handleUnbanUser(u)}
-                        className="flex-1 h-9 rounded-xl bg-accent-success/10 border border-accent-success/20 text-xs font-bold text-accent-success hover:bg-accent-success/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                      >
-                        <Check size={12} /> Unban
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleBanUser(u)}
-                        className="flex-1 h-9 rounded-xl bg-accent-danger/10 border border-accent-danger/20 text-xs font-bold text-accent-danger hover:bg-accent-danger/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                      >
-                        <Ban size={12} /> Ban
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                      {/* Action buttons */}
+                      <div className="flex gap-2 mt-3">
+                        <button onClick={() => startEditUser(u)} className="flex-1 h-8 rounded-xl text-[10px] font-bold text-slate-300 hover:text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                          <Edit3 size={11} /> Edit
+                        </button>
+                        <button onClick={() => handleFlagUser(u)} className="flex-1 h-8 rounded-xl text-[10px] font-bold text-yellow-400 hover:bg-yellow-400/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer" style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)' }}>
+                          🚩 Flag
+                        </button>
+                        {u.banStatus !== 'none' ? (
+                          <button onClick={() => handleUnbanUser(u)} className="flex-1 h-8 rounded-xl text-[10px] font-bold text-green-400 hover:bg-green-400/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer" style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)' }}>
+                            <Check size={11} /> Unban
+                          </button>
+                        ) : (
+                          <button onClick={() => handleBanUser(u)} className="flex-1 h-8 rounded-xl text-[10px] font-bold text-red-400 hover:bg-red-400/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)' }}>
+                            <Ban size={11} /> Ban
+                          </button>
+                        )}
+                      </div>
 
-            {usersList.length === 0 && !loadingUsers && (
-              <div className="text-center py-8 text-slate-500 text-xs">No registered users found.</div>
-            )}
-          </div>
-
-          {/* Edit User Modal */}
-          {editingUser && (
-            <div className="fixed inset-0 bg-black/70 z-50 flex items-end md:items-center justify-center p-4">
-              <div className="bg-[#0c0f24] border border-white/10 p-6 md:p-8 rounded-[28px] w-full max-w-[420px] md:max-w-[650px] flex flex-col gap-5 shadow-2xl">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base md:text-lg font-black text-white uppercase tracking-wide">Edit User: {editingUser.firstName}</h3>
-                  <button onClick={() => setEditingUser(null)} className="text-slate-400 hover:text-white cursor-pointer transition-colors">
-                    <X size={20} />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {[
-                    { label: 'EForce Points', value: editPoints, set: setEditPoints },
-                    { label: 'EForce Tokens', value: editTokens, set: setEditTokens },
-                    { label: 'USDT Balance', value: editWallet, set: setEditWallet },
-                    { label: 'Referrals', value: editReferrals, set: setEditReferrals },
-                  ].map(field => (
-                    <div key={field.label} className="flex flex-col gap-1.5">
-                      <label className="text-xs text-slate-400 font-bold uppercase tracking-wide">{field.label}</label>
-                      <input
-                        type="number"
-                        value={field.value}
-                        onChange={e => field.set(Number(e.target.value))}
-                        className="bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan transition-all"
-                      />
+                      {/* Edit form inline */}
+                      {editingUser?.telegramId === u.telegramId && (
+                        <div className="mt-3 pt-3 border-t border-white/5 flex flex-col gap-3">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {[
+                              { label: 'Points', val: editPoints, set: setEditPoints },
+                              { label: 'Tokens', val: editTokens, set: setEditTokens },
+                              { label: 'Wallet', val: editWallet, set: setEditWallet },
+                              { label: 'Referrals', val: editReferrals, set: setEditReferrals },
+                            ].map(f => (
+                              <div key={f.label}>
+                                <label className="text-[9px] text-slate-500 font-bold uppercase block mb-1">{f.label}</label>
+                                <input type="number" value={f.val} onChange={e => f.set(Number(e.target.value))}
+                                  className="w-full h-8 rounded-lg px-2 text-xs text-white outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }} />
+                              </div>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[9px] text-slate-500 font-bold uppercase block mb-1">Risk Level</label>
+                              <select value={editRiskLevel} onChange={e => setEditRiskLevel(e.target.value as any)}
+                                className="w-full h-8 rounded-lg px-2 text-xs text-white outline-none cursor-pointer" style={{ background: '#0D1117', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                <option value="safe">Safe</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[9px] text-slate-500 font-bold uppercase block mb-1">Ban Status</label>
+                              <select value={editBanStatus} onChange={e => setEditBanStatus(e.target.value as any)}
+                                className="w-full h-8 rounded-lg px-2 text-xs text-white outline-none cursor-pointer" style={{ background: '#0D1117', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                <option value="none">None</option>
+                                <option value="temp">Temp</option>
+                                <option value="permanent">Permanent</option>
+                              </select>
+                            </div>
+                          </div>
+                          {editBanStatus === 'temp' && (
+                            <div>
+                              <label className="text-[9px] text-slate-500 font-bold uppercase block mb-1">Duration (hours)</label>
+                              <select value={editBanDuration} onChange={e => setEditBanDuration(Number(e.target.value))}
+                                className="w-full h-8 rounded-lg px-2 text-xs text-white outline-none cursor-pointer" style={{ background: '#0D1117', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                <option value={24}>24h</option>
+                                <option value={48}>48h</option>
+                                <option value={72}>72h</option>
+                              </select>
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <button onClick={handleSaveUser} disabled={savingUser} className="flex-1 h-9 bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+                              {savingUser ? <RefreshCw size={12} className="animate-spin" /> : <Save size={12} />} Save
+                            </button>
+                            <button onClick={() => setEditingUser(null)} className="h-9 px-4 rounded-xl text-xs font-bold text-slate-400 hover:text-white cursor-pointer" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
-                  <div className="flex flex-col gap-1.5 md:col-span-2">
-                    <label className="text-xs text-slate-400 font-bold uppercase tracking-wide">Risk Level</label>
-                    <select
-                      value={editRiskLevel}
-                      onChange={e => setEditRiskLevel(e.target.value as 'safe' | 'medium' | 'high')}
-                      className="bg-[#12182D] border border-white/8 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan cursor-pointer"
-                    >
-                      <option value="safe">🟢 Safe</option>
-                      <option value="medium">🟡 Medium</option>
-                      <option value="high">🔴 High Risk</option>
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs text-slate-400 font-bold uppercase tracking-wide">Ban Status</label>
-                    <select
-                      value={editBanStatus}
-                      onChange={e => setEditBanStatus(e.target.value as 'none' | 'temp' | 'permanent')}
-                      className="bg-[#12182D] border border-white/8 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan cursor-pointer"
-                    >
-                      <option value="none">🟢 Active (No Ban)</option>
-                      <option value="temp">🟡 Temporary Ban</option>
-                      <option value="permanent">🔴 Permanent Ban</option>
-                    </select>
-                  </div>
-
-                  {editBanStatus === 'temp' && (
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs text-slate-400 font-bold uppercase tracking-wide">Ban Duration</label>
-                      <select
-                        value={editBanDuration}
-                        onChange={e => setEditBanDuration(Number(e.target.value))}
-                        className="bg-[#12182D] border border-white/8 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan cursor-pointer"
-                      >
-                        <option value={24}>24 Hours</option>
-                        <option value={48}>48 Hours</option>
-                        <option value={72}>72 Hours</option>
-                      </select>
-                    </div>
+                  {filteredUsers.length === 0 && (
+                    <div className="text-center py-10 text-slate-500 text-xs">No users found.</div>
                   )}
                 </div>
-
-                <button
-                  onClick={handleSaveUser}
-                  disabled={savingUser}
-                  className="w-full h-12 bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white text-sm font-extrabold rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all shadow-md mt-2"
-                >
-                  {savingUser ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
-                  {savingUser ? 'Saving Changes...' : 'Save User Changes'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ============ TASKS TAB ============ */}
-      {activeTab === 'tasks' && (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Task Management</span>
-            <button
-              onClick={() => { setEditingTask(null); setShowTaskForm(true); }}
-              className="flex items-center gap-1 text-[9px] bg-[#FF8A00] text-white px-3 py-1.5 rounded-xl font-bold cursor-pointer hover:bg-[#FF8A00]/90 transition-all"
-            >
-              <Plus size={10} /> New Task
-            </button>
-          </div>
-
-          {/* Task Form Modal */}
-          {showTaskForm && (
-            <div className="fixed inset-0 bg-black/70 z-50 flex items-end md:items-center justify-center p-4">
-              <div className="bg-[#0c0f24] border border-white/10 p-6 md:p-8 rounded-[28px] w-full max-w-[420px] md:max-w-[650px] flex flex-col gap-4 max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base md:text-lg font-black text-white uppercase tracking-wide">{editingTask ? 'Edit Task' : 'New Task'}</h3>
-                  <button onClick={() => setShowTaskForm(false)} className="text-slate-400 hover:text-white cursor-pointer transition-colors"><X size={20} /></button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {[
-                    { label: 'Title', key: 'title', type: 'text' },
-                    { label: 'Description', key: 'description', type: 'text' },
-                    { label: 'URL (optional)', key: 'url', type: 'text' },
-                    { label: 'EForce Reward', key: 'reward', type: 'number' },
-                    { label: 'Daily Limit (0 = unlimited)', key: 'dailyLimit', type: 'number' },
-                    { label: 'Total Limit (0 = unlimited)', key: 'totalCompletionLimit', type: 'number' },
-                    { label: 'Expiry Date (optional)', key: 'expiryDate', type: 'date' },
-                  ].map(f => (
-                    <div key={f.key} className={`flex flex-col gap-1.5 ${f.key === 'description' ? 'md:col-span-2' : ''}`}>
-                      <label className="text-xs text-slate-400 font-bold uppercase tracking-wide">{f.label}</label>
-                      <input
-                        type={f.type}
-                        value={(taskForm as any)[f.key]}
-                        onChange={e => setTaskForm(prev => ({ ...prev, [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value }))}
-                        className="bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan transition-all"
-                      />
-                    </div>
-                  ))}
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs text-slate-400 font-bold uppercase tracking-wide">Task Type</label>
-                    <select
-                      value={taskForm.type}
-                      onChange={e => setTaskForm(prev => ({ ...prev, type: e.target.value as TaskType }))}
-                      className="bg-[#12182D] border border-white/8 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white outline-none cursor-pointer"
-                    >
-                      <option value="channel">Telegram Channel</option>
-                      <option value="group">Telegram Group</option>
-                      <option value="x">Follow on X</option>
-                      <option value="website">Visit Website</option>
-                      <option value="video">Watch Video</option>
-                      <option value="daily">Daily Mission</option>
-                      <option value="ad">Reward Ad</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex gap-4 mt-2">
-                  {[
-                    { label: 'Enabled', key: 'isEnabled' },
-                    { label: 'Auto Approve', key: 'autoApprove' },
-                  ].map(f => (
-                    <button
-                      key={f.key}
-                      onClick={() => setTaskForm(prev => ({ ...prev, [f.key]: !(prev as any)[f.key] }))}
-                      className={`flex-1 h-10 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                        (taskForm as any)[f.key]
-                          ? 'bg-accent-success/15 border-accent-success/25 text-accent-success'
-                          : 'bg-white/5 border-white/10 text-slate-400'
-                      }`}
-                    >
-                      {(taskForm as any)[f.key] ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  onClick={handleSaveTask}
-                  className="w-full h-12 bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white text-sm font-extrabold rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md mt-2"
-                >
-                  <Save size={16} /> {editingTask ? 'Update Task Details' : 'Create New Task'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Task List */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {tasks.map(task => (
-              <div key={task.id} className={`glass-panel p-5 md:p-6 rounded-[22px] border-white/5 shadow-md hover:border-white/10 transition-all flex flex-col justify-between min-h-[110px] ${!task.isEnabled ? 'opacity-50' : ''}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm md:text-base font-extrabold text-white block truncate">{task.title}</span>
-                    <span className="text-[10px] md:text-xs text-slate-400 block mt-1.5 font-medium">
-                      <span className="uppercase font-black text-accent-cyan tracking-wider">{task.type}</span> • +{task.reward} EF • {task.completedCount} completions
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2.5 shrink-0 pt-0.5">
-                    <button onClick={() => handleToggleTask(task)} className="text-slate-400 hover:text-accent-cyan cursor-pointer transition-colors">
-                      {task.isEnabled ? <ToggleRight size={20} className="text-accent-success" /> : <ToggleLeft size={20} />}
-                    </button>
-                    <button onClick={() => startEditTask(task)} className="text-slate-400 hover:text-white cursor-pointer transition-colors">
-                      <Edit3 size={16} />
-                    </button>
-                    <button onClick={() => handleDeleteTask(task)} className="text-slate-400 hover:text-accent-danger cursor-pointer transition-colors">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {tasks.length === 0 && (
-              <div className="text-center py-8 text-slate-500 text-xs">No tasks yet. Create your first task!</div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ============ WITHDRAWALS TAB ============ */}
-      {activeTab === 'withdrawals' && (
-        <div className="flex flex-col gap-3">
-          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Withdrawal Queue</span>
-
-          {/* Filter */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {(['all', 'Pending', 'Approved', 'Rejected', 'Banned'] as const).map(f => (
-              <button
-                key={f}
-                onClick={() => setWithdrawFilter(f)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border cursor-pointer transition-all ${
-                  withdrawFilter === f ? 'bg-[#FF8A00] border-[#FF8A00] text-white' : 'bg-white/5 border-white/10 text-slate-400'
-                }`}
-              >
-                {f} {f !== 'all' && `(${withdrawals.filter(w => w.status === f).length})`}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {withdrawals
-              .filter(w => withdrawFilter === 'all' || w.status === withdrawFilter)
-              .map((req) => (
-                <div key={req.id} className="glass-panel p-5 md:p-6 rounded-[22px] border-white/5 shadow-md flex flex-col gap-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <span className="text-sm md:text-base font-bold text-white block">@{req.username || 'Unknown'}</span>
-                      <span className="text-xs text-slate-400 font-mono block mt-1">{req.walletAddress?.slice(0, 10)}...{req.walletAddress?.slice(-6)}</span>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className="text-sm md:text-lg font-black text-accent-success block">${req.amount} USDT</span>
-                      <span className={`inline-block text-[10px] font-extrabold uppercase px-2 py-0.5 rounded border mt-1.5 ${
-                        req.status === 'Pending' ? 'bg-accent-warning/10 border-accent-warning/25 text-accent-warning' :
-                        req.status === 'Approved' ? 'bg-accent-success/10 border-accent-success/25 text-accent-success' :
-                        req.status === 'Banned' ? 'bg-accent-danger/10 border-accent-danger/25 text-accent-danger' :
-                        'bg-white/5 border-white/10 text-slate-400'
-                      }`}>{req.status}</span>
-                    </div>
-                  </div>
-
-                  {req.status === 'Pending' && (
-                    <div className="flex gap-2">
-                      <button onClick={() => handleWithdrawAction(req.id, 'Approved')}
-                        className="flex-1 h-9 bg-accent-success/15 border border-accent-success/25 text-accent-success text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-accent-success/25 transition-all">
-                        <Check size={12} /> Approve
-                      </button>
-                      <button onClick={() => handleWithdrawAction(req.id, 'Rejected')}
-                        className="flex-1 h-9 bg-white/5 border border-white/10 text-slate-400 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-white/10 transition-all">
-                        <X size={12} /> Reject
-                      </button>
-                      <button onClick={() => handleWithdrawAction(req.id, 'Banned')}
-                        className="flex-1 h-9 bg-accent-danger/10 border border-accent-danger/20 text-accent-danger text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-accent-danger/20 transition-all">
-                        <Ban size={12} /> Ban
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            {withdrawals.filter(w => withdrawFilter === 'all' || w.status === withdrawFilter).length === 0 && (
-              <div className="text-center py-8 text-slate-500 text-xs">No {withdrawFilter !== 'all' ? withdrawFilter.toLowerCase() : ''} requests.</div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ============ SECURITY TAB ============ */}
-      {activeTab === 'security' && (
-        <div className="flex flex-col gap-3">
-          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Security Overview</span>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="glass-panel p-3.5 rounded-[18px] border-white/5">
-              <span className="text-[9px] text-slate-500 uppercase font-bold block">🚩 Flagged</span>
-              <span className="text-xl font-black text-accent-warning">{kpi.flagged}</span>
-            </div>
-            <div className="glass-panel p-3.5 rounded-[18px] border-white/5">
-              <span className="text-[9px] text-slate-500 uppercase font-bold block">🚫 Banned</span>
-              <span className="text-xl font-black text-accent-danger">{kpi.banned}</span>
-            </div>
-          </div>
-
-          {/* Flagged Users List */}
-          <div className="glass-panel p-4 rounded-[20px] border-white/6">
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold block mb-3">Flagged Users</span>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {usersList.filter(u => u.flagCount > 0).map(u => (
-                <div key={u.telegramId} className="flex items-center justify-between bg-white/[0.02] border border-accent-warning/15 rounded-2xl p-4 md:p-5">
-                  <div>
-                    <span className="text-sm font-bold text-white block">{u.firstName} {u.lastName}</span>
-                    <span className="text-xs text-slate-400 block mt-1">🚩 {u.flagCount} flags • Risk: <span className="font-extrabold uppercase text-accent-warning">{u.riskLevel}</span></span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleUnbanUser(u)}
-                      className="h-8 px-3.5 bg-accent-success/10 border border-accent-success/20 text-accent-success text-xs font-bold rounded-xl cursor-pointer hover:bg-accent-success/20 transition-all flex items-center justify-center">
-                      Unban
-                    </button>
-                    <button onClick={() => handleBanUser(u)}
-                      className="h-8 px-3.5 bg-accent-danger/10 border border-accent-danger/20 text-accent-danger text-xs font-bold rounded-xl cursor-pointer hover:bg-accent-danger/20 transition-all flex items-center justify-center">
-                      Ban
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {usersList.filter(u => u.flagCount > 0).length === 0 && (
-                <div className="text-center py-4 text-slate-500 text-xs">No flagged users. System is clean ✅</div>
               )}
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* ============ SETTINGS TAB ============ */}
-      {activeTab === 'settings' && (
-        <div className="flex flex-col gap-6">
-          <div>
-            <span className="text-[10px] md:text-xs text-slate-400 uppercase tracking-widest font-bold">Global Configuration</span>
-          </div>
+          {/* ===== TASKS ===== */}
+          {activeTab === 'tasks' && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Tasks ({tasks.length})</span>
+                <button onClick={() => { setShowTaskForm(true); setEditingTask(null); setTaskForm({ title: '', description: '', type: 'channel', reward: 500, tokenReward: 0, url: '', dailyLimit: 0, totalCompletionLimit: 0, expiryDate: '', isEnabled: true, autoApprove: true }); }}
+                  className="h-8 px-4 rounded-xl text-xs font-bold text-white flex items-center gap-2 cursor-pointer transition-all"
+                  style={{ background: 'linear-gradient(135deg,#FF8A00,#FFB347)', boxShadow: '0 0 16px rgba(255,138,0,0.35)' }}>
+                  <Plus size={12} /> New Task
+                </button>
+              </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left Column: Economy & Auto Miner */}
-            <div className="flex flex-col gap-6">
-              {/* Economy */}
-              <div className="glass-panel p-5 md:p-6 rounded-[24px] border-white/6 flex flex-col gap-4 shadow-lg">
-                <span className="text-xs md:text-sm text-slate-300 font-bold uppercase tracking-wider block mb-1">💰 Economy</span>
-                <div className="flex flex-col gap-1">
+              {showTaskForm && (
+                <div className="rounded-[20px] p-5 flex flex-col gap-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,138,0,0.2)' }}>
+                  <span className="text-xs font-bold text-[#FF8A00]">{editingTask ? 'Edit Task' : 'New Task'}</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {[
+                      { label: 'Title', key: 'title', type: 'text' },
+                      { label: 'URL', key: 'url', type: 'text' },
+                    ].map(f => (
+                      <div key={f.key}>
+                        <label className="text-[9px] text-slate-500 font-bold uppercase block mb-1">{f.label}</label>
+                        <input type={f.type} value={(taskForm as any)[f.key]} onChange={e => setTaskForm(p => ({ ...p, [f.key]: e.target.value }))}
+                          className="w-full h-9 rounded-xl px-3 text-xs text-white outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }} />
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-slate-500 font-bold uppercase block mb-1">Description</label>
+                    <textarea value={taskForm.description} onChange={e => setTaskForm(p => ({ ...p, description: e.target.value }))} rows={2}
+                      className="w-full rounded-xl px-3 py-2 text-xs text-white outline-none resize-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }} />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                      { label: 'Reward (EF)', key: 'reward' },
+                      { label: 'Token Reward', key: 'tokenReward' },
+                      { label: 'Daily Limit', key: 'dailyLimit' },
+                      { label: 'Total Limit', key: 'totalCompletionLimit' },
+                    ].map(f => (
+                      <div key={f.key}>
+                        <label className="text-[9px] text-slate-500 font-bold uppercase block mb-1">{f.label}</label>
+                        <input type="number" value={(taskForm as any)[f.key]} onChange={e => setTaskForm(p => ({ ...p, [f.key]: Number(e.target.value) }))}
+                          className="w-full h-9 rounded-xl px-3 text-xs text-white outline-none text-right" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }} />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-[9px] text-slate-500 font-bold uppercase block mb-1">Type</label>
+                      <select value={taskForm.type} onChange={e => setTaskForm(p => ({ ...p, type: e.target.value as TaskType }))}
+                        className="w-full h-9 rounded-xl px-3 text-xs text-white outline-none cursor-pointer" style={{ background: '#0D1117', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <option value="channel">Channel</option>
+                        <option value="youtube">YouTube</option>
+                        <option value="twitter">Twitter</option>
+                        <option value="website">Website</option>
+                        <option value="daily">Daily</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-slate-500 font-bold uppercase block mb-1">Expiry Date</label>
+                      <input type="date" value={taskForm.expiryDate} onChange={e => setTaskForm(p => ({ ...p, expiryDate: e.target.value }))}
+                        className="w-full h-9 rounded-xl px-3 text-xs text-white outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }} />
+                    </div>
+                    <div className="flex gap-4 items-center pt-4">
+                      <label className="flex items-center gap-2 text-[10px] text-slate-400 cursor-pointer">
+                        <input type="checkbox" checked={taskForm.isEnabled} onChange={e => setTaskForm(p => ({ ...p, isEnabled: e.target.checked }))} className="accent-[#FF8A00] w-3.5 h-3.5" />
+                        Enabled
+                      </label>
+                      <label className="flex items-center gap-2 text-[10px] text-slate-400 cursor-pointer">
+                        <input type="checkbox" checked={taskForm.autoApprove} onChange={e => setTaskForm(p => ({ ...p, autoApprove: e.target.checked }))} className="accent-[#FF8A00] w-3.5 h-3.5" />
+                        Auto-approve
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={handleSaveTask} className="flex-1 h-9 text-white rounded-xl text-xs font-bold cursor-pointer" style={{ background: 'linear-gradient(135deg,#FF8A00,#FFB347)' }}>
+                      {editingTask ? 'Update Task' : 'Create Task'}
+                    </button>
+                    <button onClick={() => { setShowTaskForm(false); setEditingTask(null); }} className="h-9 px-4 rounded-xl text-xs text-slate-400 hover:text-white cursor-pointer" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2">
+                {tasks.map(task => (
+                  <div key={task.id} className="rounded-[16px] p-4 flex items-start gap-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${task.isEnabled ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.8)]' : 'bg-slate-600'}`} />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-bold text-white block">{task.title}</span>
+                      <span className="text-[9px] text-slate-500">{task.type} • {task.reward} EF {task.tokenReward > 0 ? `+ ${task.tokenReward} tokens` : ''}</span>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button onClick={() => handleToggleTask(task)} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white transition-all cursor-pointer" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        {task.isEnabled ? <ToggleRight size={14} className="text-green-400" /> : <ToggleLeft size={14} />}
+                      </button>
+                      <button onClick={() => startEditTask(task)} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white transition-all cursor-pointer" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <Edit3 size={12} />
+                      </button>
+                      <button onClick={() => handleDeleteTask(task)} className="w-8 h-8 rounded-lg flex items-center justify-center text-red-400 hover:bg-red-400/20 transition-all cursor-pointer" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.15)' }}>
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {tasks.length === 0 && <div className="text-center py-8 text-slate-500 text-xs">No tasks. Create the first one!</div>}
+              </div>
+            </div>
+          )}
+
+          {/* ===== WITHDRAWALS ===== */}
+          {activeTab === 'withdrawals' && (
+            <div className="flex flex-col gap-4">
+              {/* Filter tabs */}
+              <div className="flex gap-2 flex-wrap">
+                {(['all', 'Pending', 'Approved', 'Rejected', 'Banned'] as const).map(f => (
+                  <button key={f} onClick={() => setWithdrawFilter(f)}
+                    className={`px-3 h-7 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all ${withdrawFilter === f ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                    style={{ background: withdrawFilter === f ? 'linear-gradient(135deg,#FF8A00,#FFB347)' : 'rgba(255,255,255,0.04)', border: '1px solid ' + (withdrawFilter === f ? 'transparent' : 'rgba(255,255,255,0.08)') }}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {withdrawals.filter(w => withdrawFilter === 'all' || w.status === withdrawFilter).map(req => (
+                  <div key={req.id} className="rounded-[16px] p-4 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={{ background: 'rgba(255,138,0,0.12)', border: '1px solid rgba(255,138,0,0.25)' }}>
+                        <DollarSign size={14} className="text-[#FF8A00]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-white">@{req.username || req.telegramId}</span>
+                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${req.status === 'Pending' ? 'text-yellow-400 bg-yellow-400/10 border border-yellow-400/20' : req.status === 'Approved' ? 'text-green-400 bg-green-400/10 border border-green-400/20' : 'text-red-400 bg-red-400/10 border border-red-400/20'}`}>
+                            {req.status}
+                          </span>
+                        </div>
+                        <span className="text-[9px] text-slate-500">Amount: {req.amount} USDT • BEP-20</span>
+                      </div>
+                    </div>
+                    {req.status === 'Pending' && (
+                      <div className="flex gap-2">
+                        <button onClick={() => handleWithdrawAction(req.id, 'Approved')} className="flex-1 h-8 rounded-xl text-[10px] font-bold text-green-400 flex items-center justify-center gap-1.5 cursor-pointer transition-all" style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)' }}>
+                          <Check size={11} /> Approve
+                        </button>
+                        <button onClick={() => handleWithdrawAction(req.id, 'Rejected')} className="flex-1 h-8 rounded-xl text-[10px] font-bold text-slate-400 flex items-center justify-center gap-1.5 cursor-pointer transition-all" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                          <X size={11} /> Reject
+                        </button>
+                        <button onClick={() => handleWithdrawAction(req.id, 'Banned')} className="flex-1 h-8 rounded-xl text-[10px] font-bold text-red-400 flex items-center justify-center gap-1.5 cursor-pointer transition-all" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)' }}>
+                          <Ban size={11} /> Ban
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {withdrawals.filter(w => withdrawFilter === 'all' || w.status === withdrawFilter).length === 0 && (
+                  <div className="text-center py-10 text-slate-500 text-xs">No {withdrawFilter !== 'all' ? withdrawFilter.toLowerCase() : ''} requests.</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ===== SECURITY ===== */}
+          {activeTab === 'security' && (
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: 'Flagged Users', value: kpi.flagged, color: 'text-yellow-400', bg: 'rgba(234,179,8,0.08)', border: 'rgba(234,179,8,0.2)', icon: '🚩' },
+                  { label: 'Banned Users', value: kpi.banned, color: 'text-red-400', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.2)', icon: '🚫' },
+                  { label: 'Auto Miners', value: kpi.autoMiners, color: 'text-[#FF8A00]', bg: 'rgba(255,138,0,0.08)', border: 'rgba(255,138,0,0.2)', icon: '⛏️' },
+                  { label: 'Total Users', value: kpi.total, color: 'text-white', bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.08)', icon: '👥' },
+                ].map(item => (
+                  <div key={item.label} className="rounded-[18px] p-4 flex flex-col gap-1" style={{ background: item.bg, border: `1px solid ${item.border}` }}>
+                    <span className="text-sm">{item.icon}</span>
+                    <span className={`text-2xl font-black ${item.color}`}>{loadingKpi ? '-' : item.value}</span>
+                    <span className="text-[9px] text-slate-500">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-[20px] p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <span className="text-xs font-bold text-white block mb-3">Flagged Users</span>
+                <div className="flex flex-col gap-2">
+                  {usersList.filter(u => u.flagCount > 0).map(u => (
+                    <div key={u.telegramId} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.12)' }}>
+                      <div className="w-8 h-8 rounded-full bg-yellow-400/10 flex items-center justify-center text-xs font-bold text-yellow-400 shrink-0">
+                        {(u.firstName?.[0] ?? 'U').toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-bold text-white block">{u.firstName} {u.lastName}</span>
+                        <span className="text-[9px] text-slate-500">🚩 {u.flagCount} flags • Risk: <span className="font-bold text-yellow-400 uppercase">{u.riskLevel}</span></span>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={() => handleUnbanUser(u)} className="h-7 px-3 rounded-lg text-[9px] font-bold text-green-400 cursor-pointer transition-all" style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)' }}>Unban</button>
+                        <button onClick={() => handleBanUser(u)} className="h-7 px-3 rounded-lg text-[9px] font-bold text-red-400 cursor-pointer transition-all" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)' }}>Ban</button>
+                      </div>
+                    </div>
+                  ))}
+                  {usersList.filter(u => u.flagCount > 0).length === 0 && (
+                    <div className="text-center py-6 text-slate-500 text-xs">✅ No flagged users. System is clean!</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ===== SETTINGS ===== */}
+          {activeTab === 'settings' && (
+            <div className="flex flex-col gap-5">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* Economy */}
+                <div className="rounded-[20px] p-5 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span className="text-xs font-bold text-white">💰 Economy</span>
                   {[
-                    { label: 'Swap Rate (EForce Points per 1 EForce Token)', key: 'swapRate' },
+                    { label: 'Swap Rate (Points per Token)', key: 'swapRate' },
                     { label: 'EForce Token Value (USD)', key: 'eforceTokenValue' },
                     { label: 'Tap Reward (EForce)', key: 'tapReward' },
                     { label: 'Combo Multiplier (x)', key: 'comboReward' },
                     { label: 'Max Energy', key: 'energyMax' },
                   ].map(f => (
-                    <div key={f.key} className="flex items-center justify-between gap-4 py-3 border-b border-white/[0.03] last:border-0">
-                      <label className="text-xs md:text-sm text-slate-400 font-medium">{f.label}</label>
-                      <input
-                        type="number"
-                        value={(settings as any)[f.key]}
-                        onChange={e => setSettings(prev => ({ ...prev, [f.key]: Number(e.target.value) }))}
-                        className="w-28 md:w-32 bg-white/5 border border-white/8 rounded-xl px-3 py-1.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan text-right transition-all"
-                      />
+                    <div key={f.key} className="flex items-center justify-between gap-4 py-2 border-b border-white/[0.04] last:border-0">
+                      <label className="text-xs text-slate-400">{f.label}</label>
+                      <input type="number" value={(settings as any)[f.key]} onChange={e => setSettings(prev => ({ ...prev, [f.key]: Number(e.target.value) }))}
+                        className="w-28 h-8 rounded-lg px-3 text-xs text-white outline-none text-right" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }} />
                     </div>
                   ))}
-                  <div className="flex items-center justify-between py-3">
-                    <label className="text-xs md:text-sm text-slate-400 font-medium">Swap Portal Open</label>
-                    <button
-                      onClick={() => setSettings(prev => ({ ...prev, swapOpen: !prev.swapOpen }))}
-                      className={`w-12 h-6 rounded-full transition-all cursor-pointer relative ${settings.swapOpen ? 'bg-accent-success' : 'bg-white/10'}`}
-                    >
-                      <div className={`w-5 h-5 bg-white rounded-full transition-all absolute top-0.5 left-0.5 ${settings.swapOpen ? 'translate-x-6' : ''}`} />
+                  <div className="flex items-center justify-between py-2">
+                    <label className="text-xs text-slate-400">Swap Portal Open</label>
+                    <button onClick={() => setSettings(prev => ({ ...prev, swapOpen: !prev.swapOpen }))}
+                      className={`w-11 h-6 rounded-full transition-all cursor-pointer relative ${settings.swapOpen ? 'bg-green-500' : 'bg-white/10'}`}>
+                      <div className={`w-4.5 h-4.5 bg-white rounded-full absolute top-[3px] transition-all ${settings.swapOpen ? 'left-[23px]' : 'left-[3px]'}`} style={{ width: 18, height: 18 }} />
                     </button>
                   </div>
                 </div>
-              </div>
 
-              {/* Auto Miner */}
-              <div className="glass-panel p-5 md:p-6 rounded-[24px] border-white/6 flex flex-col gap-4 shadow-lg">
-                <span className="text-xs md:text-sm text-slate-300 font-bold uppercase tracking-wider block mb-1">⛏️ Auto Miner</span>
-                <div className="flex flex-col gap-1">
+                {/* Auto Miner */}
+                <div className="rounded-[20px] p-5 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span className="text-xs font-bold text-white">⛏️ Auto Miner</span>
                   {[
                     { label: 'Duration (seconds)', key: 'autoMinerDuration' },
                     { label: 'Reward per Session (EForce)', key: 'autoMinerReward' },
                     { label: 'Cooldown (seconds)', key: 'autoMinerCooldown' },
                   ].map(f => (
-                    <div key={f.key} className="flex items-center justify-between gap-4 py-3 border-b border-white/[0.03] last:border-0">
-                      <label className="text-xs md:text-sm text-slate-400 font-medium">{f.label}</label>
-                      <input
-                        type="number"
-                        value={(settings as any)[f.key]}
-                        onChange={e => setSettings(prev => ({ ...prev, [f.key]: Number(e.target.value) }))}
-                        className="w-28 md:w-32 bg-white/5 border border-white/8 rounded-xl px-3 py-1.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan text-right transition-all"
-                      />
+                    <div key={f.key} className="flex items-center justify-between gap-4 py-2 border-b border-white/[0.04] last:border-0">
+                      <label className="text-xs text-slate-400">{f.label}</label>
+                      <input type="number" value={(settings as any)[f.key]} onChange={e => setSettings(prev => ({ ...prev, [f.key]: Number(e.target.value) }))}
+                        className="w-28 h-8 rounded-lg px-3 text-xs text-white outline-none text-right" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }} />
                     </div>
                   ))}
-                  <div className="flex items-center justify-between py-3">
-                    <label className="text-xs md:text-sm text-slate-400 font-medium">Premium Only</label>
-                    <button
-                      onClick={() => setSettings(prev => ({ ...prev, autoMinerPremiumOnly: !prev.autoMinerPremiumOnly }))}
-                      className={`w-12 h-6 rounded-full transition-all cursor-pointer relative ${settings.autoMinerPremiumOnly ? 'bg-accent-cyan' : 'bg-white/10'}`}
-                    >
-                      <div className={`w-5 h-5 bg-white rounded-full transition-all absolute top-0.5 left-0.5 ${settings.autoMinerPremiumOnly ? 'translate-x-6' : ''}`} />
+                  <div className="flex items-center justify-between py-2">
+                    <label className="text-xs text-slate-400">Premium Only</label>
+                    <button onClick={() => setSettings(prev => ({ ...prev, autoMinerPremiumOnly: !prev.autoMinerPremiumOnly }))}
+                      className={`w-11 h-6 rounded-full transition-all cursor-pointer relative ${settings.autoMinerPremiumOnly ? 'bg-[#00E5FF]' : 'bg-white/10'}`}>
+                      <div className={`bg-white rounded-full absolute top-[3px] transition-all`} style={{ width: 18, height: 18, left: settings.autoMinerPremiumOnly ? 23 : 3 }} />
                     </button>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Right Column: Referral & Daily Check-in */}
-            <div className="flex flex-col gap-6">
-              {/* Referral & Withdraw */}
-              <div className="glass-panel p-5 md:p-6 rounded-[24px] border-white/6 flex flex-col gap-4 shadow-lg">
-                <span className="text-xs md:text-sm text-slate-300 font-bold uppercase tracking-wider block mb-1">🔗 Referral & Withdrawal</span>
-                <div className="flex flex-col gap-1">
+                {/* Referral & Withdraw */}
+                <div className="rounded-[20px] p-5 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span className="text-xs font-bold text-white">🔗 Referral & Withdrawal</span>
                   {[
                     { label: 'Referral USDT Reward', key: 'referralRewardUsdt' },
                     { label: 'Referral Token Reward', key: 'referralRewardToken' },
                     { label: 'Min Referrals to Withdraw', key: 'withdrawMinReferrals' },
                     { label: 'Min Withdraw Amount (USDT)', key: 'withdrawMinAmount' },
                   ].map(f => (
-                    <div key={f.key} className="flex items-center justify-between gap-4 py-3 border-b border-white/[0.03] last:border-0">
-                      <label className="text-xs md:text-sm text-slate-400 font-medium">{f.label}</label>
-                      <input
-                        type="number"
-                        value={(settings as any)[f.key]}
-                        onChange={e => setSettings(prev => ({ ...prev, [f.key]: Number(e.target.value) }))}
-                        className="w-28 md:w-32 bg-white/5 border border-white/8 rounded-xl px-3 py-1.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan text-right transition-all"
-                      />
+                    <div key={f.key} className="flex items-center justify-between gap-4 py-2 border-b border-white/[0.04] last:border-0">
+                      <label className="text-xs text-slate-400">{f.label}</label>
+                      <input type="number" value={(settings as any)[f.key]} onChange={e => setSettings(prev => ({ ...prev, [f.key]: Number(e.target.value) }))}
+                        className="w-28 h-8 rounded-lg px-3 text-xs text-white outline-none text-right" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }} />
                     </div>
                   ))}
+                </div>
+
+                {/* Daily Check-in */}
+                <div className="rounded-[20px] p-5 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span className="text-xs font-bold text-white">📅 Daily Check-in Rewards</span>
+                  <div className="grid grid-cols-4 gap-2">
+                    {settings.dailyClaimRewards.map((reward, i) => (
+                      <div key={i} className="flex flex-col gap-1 items-center">
+                        <label className="text-[9px] text-slate-500 font-bold">Day {i + 1}</label>
+                        <input type="number" value={reward}
+                          onChange={e => {
+                            const nr = [...settings.dailyClaimRewards];
+                            nr[i] = Number(e.target.value);
+                            setSettings(prev => ({ ...prev, dailyClaimRewards: nr }));
+                          }}
+                          className="w-full h-8 rounded-lg px-1 text-[10px] text-white outline-none text-center" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }} />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {/* Daily Claim Rewards */}
-              <div className="glass-panel p-5 md:p-6 rounded-[24px] border-white/6 flex flex-col gap-4 shadow-lg">
-                <span className="text-xs md:text-sm text-slate-300 font-bold uppercase tracking-wider block mb-1">📅 Daily Check-in Rewards</span>
-                <div className="grid grid-cols-4 gap-3">
-                  {settings.dailyClaimRewards.map((reward, i) => (
-                    <div key={i} className="flex flex-col gap-1 bg-white/[0.02] border border-white/5 rounded-xl p-2 items-center">
-                      <label className="text-[10px] text-slate-500 text-center font-bold">Day {i + 1}</label>
-                      <input
-                        type="number"
-                        value={reward}
-                        onChange={e => {
-                          const newRewards = [...settings.dailyClaimRewards];
-                          newRewards[i] = Number(e.target.value);
-                          setSettings(prev => ({ ...prev, dailyClaimRewards: newRewards }));
-                        }}
-                        className="w-full bg-white/5 border border-white/8 rounded-lg px-1 py-1 text-xs text-white outline-none text-center focus:border-accent-cyan"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <button onClick={handleSaveSettings} disabled={savingSettings}
+                className="w-full h-11 text-white font-bold rounded-[16px] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all"
+                style={{ background: 'linear-gradient(135deg,#FF8A00,#FFB347)', boxShadow: '0 0 24px rgba(255,138,0,0.35)' }}>
+                {savingSettings ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}
+                {savingSettings ? 'Saving to Firestore...' : 'Save All Settings'}
+              </button>
             </div>
-          </div>
+          )}
 
-          {/* Save Button */}
-          <button
-            onClick={handleSaveSettings}
-            disabled={savingSettings}
-            className="w-full h-12 bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white font-bold rounded-[18px] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all shadow-md mt-2"
-          >
-            {savingSettings ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
-            {savingSettings ? 'Saving to Firestore...' : 'Save All Settings'}
-          </button>
-        </div>
-      )}
+        </main>
+      </div>
     </div>
   );
 };
