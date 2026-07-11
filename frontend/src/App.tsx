@@ -446,8 +446,8 @@ export default function App() {
         );
       }
       return (
-        <div className="flex flex-col gap-6 w-full h-full max-w-[1600px] mx-auto px-4 md:px-12 py-8">
-          <div className="flex justify-between items-center">
+        <div className="flex flex-col gap-6 w-full h-full max-w-[1600px] mx-auto px-4 md:px-12 pt-6 pb-6 overflow-hidden">
+          <div className="flex justify-between items-center shrink-0">
             <span className="text-[10px] font-black text-accent-cyan uppercase tracking-widest bg-accent-cyan/10 border border-accent-cyan/15 px-3 py-1 rounded-full">
               Console Session
             </span>
@@ -458,7 +458,7 @@ export default function App() {
               Sign Out
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto pb-10 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto pb-10 custom-scrollbar pr-1">
             <Admin 
               showToast={showToast} 
               liveUserCount={liveUserCount}
@@ -620,7 +620,7 @@ export default function App() {
       {!loading && (
         <div className={
           isAdminPath 
-            ? "w-full h-full min-h-screen bg-[#050816]/95 backdrop-blur-sm relative flex flex-col overflow-hidden"
+            ? "w-full h-screen bg-[#050816]/95 backdrop-blur-sm relative flex flex-col overflow-hidden"
             : "w-full h-full max-w-[430px] md:h-[840px] md:rounded-[36px] md:border-[6px] md:border-[#1E2338] md:shadow-[0_25px_80px_rgba(0,0,0,0.8),_0_0_0_1px_rgba(255,255,255,0.05),_0_0_40px_rgba(0,229,255,0.03)] bg-[#050816]/95 backdrop-blur-sm relative flex flex-col overflow-hidden"
         }>
           

@@ -689,109 +689,125 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
 
       {/* ============ SETTINGS TAB ============ */}
       {activeTab === 'settings' && (
-        <div className="flex flex-col gap-4">
-          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Global Configuration</span>
-
-          {/* Economy */}
-          <div className="glass-panel p-4 rounded-[20px] border-white/6 flex flex-col gap-3">
-            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">💰 Economy</span>
-            {[
-              { label: 'Swap Rate (EForce Points per 1 EForce Token)', key: 'swapRate' },
-              { label: 'EForce Token Value (USD)', key: 'eforceTokenValue' },
-              { label: 'Tap Reward (EForce)', key: 'tapReward' },
-              { label: 'Combo Multiplier (x)', key: 'comboReward' },
-              { label: 'Max Energy', key: 'energyMax' },
-            ].map(f => (
-              <div key={f.key} className="flex items-center justify-between gap-3">
-                <label className="text-[10px] text-slate-400 flex-1">{f.label}</label>
-                <input
-                  type="number"
-                  value={(settings as any)[f.key]}
-                  onChange={e => setSettings(prev => ({ ...prev, [f.key]: Number(e.target.value) }))}
-                  className="w-24 bg-white/5 border border-white/8 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-accent-cyan text-right"
-                />
-              </div>
-            ))}
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] text-slate-400">Swap Portal Open</label>
-              <button
-                onClick={() => setSettings(prev => ({ ...prev, swapOpen: !prev.swapOpen }))}
-                className={`w-10 h-5 rounded-full transition-all cursor-pointer ${settings.swapOpen ? 'bg-accent-success' : 'bg-white/10'}`}
-              >
-                <div className={`w-4 h-4 bg-white rounded-full transition-all mx-0.5 ${settings.swapOpen ? 'translate-x-5' : ''}`} />
-              </button>
-            </div>
+        <div className="flex flex-col gap-6">
+          <div>
+            <span className="text-[10px] md:text-xs text-slate-400 uppercase tracking-widest font-bold">Global Configuration</span>
           </div>
 
-          {/* Referral & Withdraw */}
-          <div className="glass-panel p-4 rounded-[20px] border-white/6 flex flex-col gap-3">
-            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">🔗 Referral & Withdrawal</span>
-            {[
-              { label: 'Referral USDT Reward', key: 'referralRewardUsdt' },
-              { label: 'Referral Token Reward', key: 'referralRewardToken' },
-              { label: 'Min Referrals to Withdraw', key: 'withdrawMinReferrals' },
-              { label: 'Min Withdraw Amount (USDT)', key: 'withdrawMinAmount' },
-            ].map(f => (
-              <div key={f.key} className="flex items-center justify-between gap-3">
-                <label className="text-[10px] text-slate-400 flex-1">{f.label}</label>
-                <input
-                  type="number"
-                  value={(settings as any)[f.key]}
-                  onChange={e => setSettings(prev => ({ ...prev, [f.key]: Number(e.target.value) }))}
-                  className="w-24 bg-white/5 border border-white/8 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-accent-cyan text-right"
-                />
-              </div>
-            ))}
-          </div>
-
-          {/* Auto Miner */}
-          <div className="glass-panel p-4 rounded-[20px] border-white/6 flex flex-col gap-3">
-            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">⛏️ Auto Miner</span>
-            {[
-              { label: 'Duration (seconds)', key: 'autoMinerDuration' },
-              { label: 'Reward per Session (EForce)', key: 'autoMinerReward' },
-              { label: 'Cooldown (seconds)', key: 'autoMinerCooldown' },
-            ].map(f => (
-              <div key={f.key} className="flex items-center justify-between gap-3">
-                <label className="text-[10px] text-slate-400 flex-1">{f.label}</label>
-                <input
-                  type="number"
-                  value={(settings as any)[f.key]}
-                  onChange={e => setSettings(prev => ({ ...prev, [f.key]: Number(e.target.value) }))}
-                  className="w-24 bg-white/5 border border-white/8 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-accent-cyan text-right"
-                />
-              </div>
-            ))}
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] text-slate-400">Premium Only</label>
-              <button
-                onClick={() => setSettings(prev => ({ ...prev, autoMinerPremiumOnly: !prev.autoMinerPremiumOnly }))}
-                className={`w-10 h-5 rounded-full transition-all cursor-pointer ${settings.autoMinerPremiumOnly ? 'bg-accent-cyan' : 'bg-white/10'}`}
-              >
-                <div className={`w-4 h-4 bg-white rounded-full transition-all mx-0.5 ${settings.autoMinerPremiumOnly ? 'translate-x-5' : ''}`} />
-              </button>
-            </div>
-          </div>
-
-          {/* Daily Claim Rewards */}
-          <div className="glass-panel p-4 rounded-[20px] border-white/6 flex flex-col gap-3">
-            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">📅 Daily Check-in Rewards</span>
-            <div className="grid grid-cols-4 gap-2">
-              {settings.dailyClaimRewards.map((reward, i) => (
-                <div key={i} className="flex flex-col gap-1">
-                  <label className="text-[8px] text-slate-500 text-center">Day {i + 1}</label>
-                  <input
-                    type="number"
-                    value={reward}
-                    onChange={e => {
-                      const newRewards = [...settings.dailyClaimRewards];
-                      newRewards[i] = Number(e.target.value);
-                      setSettings(prev => ({ ...prev, dailyClaimRewards: newRewards }));
-                    }}
-                    className="w-full bg-white/5 border border-white/8 rounded-lg px-1 py-1 text-[10px] text-white outline-none text-center focus:border-accent-cyan"
-                  />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Column: Economy & Auto Miner */}
+            <div className="flex flex-col gap-6">
+              {/* Economy */}
+              <div className="glass-panel p-5 md:p-6 rounded-[24px] border-white/6 flex flex-col gap-4 shadow-lg">
+                <span className="text-xs md:text-sm text-slate-300 font-bold uppercase tracking-wider block mb-1">💰 Economy</span>
+                <div className="flex flex-col gap-1">
+                  {[
+                    { label: 'Swap Rate (EForce Points per 1 EForce Token)', key: 'swapRate' },
+                    { label: 'EForce Token Value (USD)', key: 'eforceTokenValue' },
+                    { label: 'Tap Reward (EForce)', key: 'tapReward' },
+                    { label: 'Combo Multiplier (x)', key: 'comboReward' },
+                    { label: 'Max Energy', key: 'energyMax' },
+                  ].map(f => (
+                    <div key={f.key} className="flex items-center justify-between gap-4 py-3 border-b border-white/[0.03] last:border-0">
+                      <label className="text-xs md:text-sm text-slate-400 font-medium">{f.label}</label>
+                      <input
+                        type="number"
+                        value={(settings as any)[f.key]}
+                        onChange={e => setSettings(prev => ({ ...prev, [f.key]: Number(e.target.value) }))}
+                        className="w-28 md:w-32 bg-white/5 border border-white/8 rounded-xl px-3 py-1.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan text-right transition-all"
+                      />
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between py-3">
+                    <label className="text-xs md:text-sm text-slate-400 font-medium">Swap Portal Open</label>
+                    <button
+                      onClick={() => setSettings(prev => ({ ...prev, swapOpen: !prev.swapOpen }))}
+                      className={`w-12 h-6 rounded-full transition-all cursor-pointer relative ${settings.swapOpen ? 'bg-accent-success' : 'bg-white/10'}`}
+                    >
+                      <div className={`w-5 h-5 bg-white rounded-full transition-all absolute top-0.5 left-0.5 ${settings.swapOpen ? 'translate-x-6' : ''}`} />
+                    </button>
+                  </div>
                 </div>
-              ))}
+              </div>
+
+              {/* Auto Miner */}
+              <div className="glass-panel p-5 md:p-6 rounded-[24px] border-white/6 flex flex-col gap-4 shadow-lg">
+                <span className="text-xs md:text-sm text-slate-300 font-bold uppercase tracking-wider block mb-1">⛏️ Auto Miner</span>
+                <div className="flex flex-col gap-1">
+                  {[
+                    { label: 'Duration (seconds)', key: 'autoMinerDuration' },
+                    { label: 'Reward per Session (EForce)', key: 'autoMinerReward' },
+                    { label: 'Cooldown (seconds)', key: 'autoMinerCooldown' },
+                  ].map(f => (
+                    <div key={f.key} className="flex items-center justify-between gap-4 py-3 border-b border-white/[0.03] last:border-0">
+                      <label className="text-xs md:text-sm text-slate-400 font-medium">{f.label}</label>
+                      <input
+                        type="number"
+                        value={(settings as any)[f.key]}
+                        onChange={e => setSettings(prev => ({ ...prev, [f.key]: Number(e.target.value) }))}
+                        className="w-28 md:w-32 bg-white/5 border border-white/8 rounded-xl px-3 py-1.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan text-right transition-all"
+                      />
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between py-3">
+                    <label className="text-xs md:text-sm text-slate-400 font-medium">Premium Only</label>
+                    <button
+                      onClick={() => setSettings(prev => ({ ...prev, autoMinerPremiumOnly: !prev.autoMinerPremiumOnly }))}
+                      className={`w-12 h-6 rounded-full transition-all cursor-pointer relative ${settings.autoMinerPremiumOnly ? 'bg-accent-cyan' : 'bg-white/10'}`}
+                    >
+                      <div className={`w-5 h-5 bg-white rounded-full transition-all absolute top-0.5 left-0.5 ${settings.autoMinerPremiumOnly ? 'translate-x-6' : ''}`} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Referral & Daily Check-in */}
+            <div className="flex flex-col gap-6">
+              {/* Referral & Withdraw */}
+              <div className="glass-panel p-5 md:p-6 rounded-[24px] border-white/6 flex flex-col gap-4 shadow-lg">
+                <span className="text-xs md:text-sm text-slate-300 font-bold uppercase tracking-wider block mb-1">🔗 Referral & Withdrawal</span>
+                <div className="flex flex-col gap-1">
+                  {[
+                    { label: 'Referral USDT Reward', key: 'referralRewardUsdt' },
+                    { label: 'Referral Token Reward', key: 'referralRewardToken' },
+                    { label: 'Min Referrals to Withdraw', key: 'withdrawMinReferrals' },
+                    { label: 'Min Withdraw Amount (USDT)', key: 'withdrawMinAmount' },
+                  ].map(f => (
+                    <div key={f.key} className="flex items-center justify-between gap-4 py-3 border-b border-white/[0.03] last:border-0">
+                      <label className="text-xs md:text-sm text-slate-400 font-medium">{f.label}</label>
+                      <input
+                        type="number"
+                        value={(settings as any)[f.key]}
+                        onChange={e => setSettings(prev => ({ ...prev, [f.key]: Number(e.target.value) }))}
+                        className="w-28 md:w-32 bg-white/5 border border-white/8 rounded-xl px-3 py-1.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan text-right transition-all"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Daily Claim Rewards */}
+              <div className="glass-panel p-5 md:p-6 rounded-[24px] border-white/6 flex flex-col gap-4 shadow-lg">
+                <span className="text-xs md:text-sm text-slate-300 font-bold uppercase tracking-wider block mb-1">📅 Daily Check-in Rewards</span>
+                <div className="grid grid-cols-4 gap-3">
+                  {settings.dailyClaimRewards.map((reward, i) => (
+                    <div key={i} className="flex flex-col gap-1 bg-white/[0.02] border border-white/5 rounded-xl p-2 items-center">
+                      <label className="text-[10px] text-slate-500 text-center font-bold">Day {i + 1}</label>
+                      <input
+                        type="number"
+                        value={reward}
+                        onChange={e => {
+                          const newRewards = [...settings.dailyClaimRewards];
+                          newRewards[i] = Number(e.target.value);
+                          setSettings(prev => ({ ...prev, dailyClaimRewards: newRewards }));
+                        }}
+                        className="w-full bg-white/5 border border-white/8 rounded-lg px-1 py-1 text-xs text-white outline-none text-center focus:border-accent-cyan"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -799,7 +815,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
           <button
             onClick={handleSaveSettings}
             disabled={savingSettings}
-            className="w-full h-12 bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white font-bold rounded-[18px] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all"
+            className="w-full h-12 bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white font-bold rounded-[18px] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all shadow-md mt-2"
           >
             {savingSettings ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
             {savingSettings ? 'Saving to Firestore...' : 'Save All Settings'}
