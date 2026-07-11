@@ -239,11 +239,17 @@ export const Wallet: React.FC<WalletProps> = ({
           <div>
             <span className="text-[9px] text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">EForce Balance</span>
             <span className="text-sm font-extrabold text-white font-display">{efcBalance.toLocaleString()}</span>
+            <span className="text-[8px] text-slate-500 block mt-0.5 font-bold">
+              ≈ {(efcBalance / swapRate).toFixed(2)} Tokens
+            </span>
           </div>
           <div>
             <span className="text-[9px] text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">EForce Tokens</span>
-            <span className="text-sm font-semibold text-accent-purple flex items-center gap-1 font-display">
+            <span className="text-sm font-semibold text-accent-purple flex items-center gap-1 font-display mb-0.5">
               <Clock size={11} /> {eforceTokens.toLocaleString()}
+            </span>
+            <span className="text-[8px] text-slate-400 block font-bold">
+              ≈ ${(eforceTokens * (settings.eforceTokenValue || 0.05)).toFixed(2)} USDT
             </span>
           </div>
         </div>
@@ -342,8 +348,8 @@ export const Wallet: React.FC<WalletProps> = ({
 
         {settings.swapOpen ? (
           <div className="flex flex-col gap-3">
-            <p className="text-[11px] text-slate-400">
-              Convert your mined EForce Points to EForce utility tokens instantly. Current Conversion rate is <span className="text-accent-cyan font-bold">{swapRate} Points = 1 EForce Token</span>.
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Convert your mined EForce Points to EForce utility tokens instantly. Current Conversion rate is <span className="text-accent-cyan font-bold">{swapRate} Points = 1 EForce Token</span> (Valued at <span className="text-accent-success font-bold">${settings.eforceTokenValue || 0.05} USDT</span>).
             </p>
             <button
               onClick={() => setShowSwapModal(true)}
@@ -394,6 +400,9 @@ export const Wallet: React.FC<WalletProps> = ({
                   <span className="text-[10px] text-slate-500 font-bold uppercase">You will receive</span>
                   <span className="text-sm font-black text-accent-cyan">
                     {(parseInt(swapInputPoints) / swapRate || 0).toLocaleString()} EForce Tokens
+                  </span>
+                  <span className="text-[9px] text-slate-400 font-bold block mt-0.5">
+                    ≈ ${((parseInt(swapInputPoints) / swapRate || 0) * (settings.eforceTokenValue || 0.05)).toFixed(2)} USDT value
                   </span>
                 </div>
 
