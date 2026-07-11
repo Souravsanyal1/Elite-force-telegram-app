@@ -13,19 +13,22 @@ if (!token) {
 
 const bot = new Telegraf(token);
 
-// Escape MarkdownV2 special characters
-function escapeMarkdownV2(text) {
-  return text.replace(/[_*[\]()~`>#+-=|{}.!]/g, '\\$&');
+// Escape HTML special characters
+function escapeHTML(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 bot.start(async (ctx) => {
-  const username = escapeMarkdownV2(ctx.from.first_name || 'Force Agent');
+  const username = ctx.from.first_name || 'Force Agent';
   const payload = ctx.startPayload || '';
   // Append tgWebAppStartParam so Telegram WebApp SDK populates initDataUnsafe.start_param
   const finalUrl = payload ? `${webAppUrl}?tgWebAppStartParam=${payload}` : webAppUrl;
   
-  await ctx.replyWithMarkdownV2(
-    `🛸 *Welcome to Elite Force \\(EFC\\), ${username}\\!* 🛸\n\nElite Force is a next\\-generation premium Web3 ecosystem\\.\n\nTap the button below to launch the Mini App and access your luxury dashboard\\!`,
+  await ctx.replyWithHTML(
+    `🛸 Welcome to Elite Force (EForce), ${escapeHTML(username)}🛸\n\nElite Force is a next-generation premium Web3 ecosystem.\n\nTap the button below to launch the Mini App and access your luxury dashboard!`,
     Markup.inlineKeyboard([
       [Markup.button.webApp('🚀 Launch Elite Force App', finalUrl)]
     ])
@@ -39,19 +42,20 @@ bot.start(async (ctx) => {
         // Get inviter details
         const inviterChat = await ctx.telegram.getChat(inviterId).catch(() => null);
         const inviterName = inviterChat ? (inviterChat.first_name || inviterChat.username || 'your sponsor') : 'your sponsor';
-        const inviterUsername = inviterChat && inviterChat.username ? `@${escapeMarkdownV2(inviterChat.username)}` : 'your sponsor';
+        const inviterUsername = inviterChat && inviterChat.username ? `@${escapeHTML(inviterChat.username)}` : 'your sponsor';
 
         // Notify inviter (referrer)
-        const inviteeUsername = ctx.from.username ? `@${escapeMarkdownV2(ctx.from.username)}` : escapeMarkdownV2(ctx.from.first_name || 'A user');
+        const inviteeUsername = ctx.from.username ? `@${escapeHTML(ctx.from.username)}` : escapeHTML(ctx.from.first_name || 'A user');
         await bot.telegram.sendMessage(
           inviterId,
-          `🛸 *New Referral Registered\\!* 🛸\n\nUser ${inviteeUsername} has registered under your link\\. You will receive your referral reward as soon as they start mining\\!`,
-          { parse_mode: 'MarkdownV2' }
+          `🛸 <b>New Referral Registered!</b> 🛸\n\nUser ${inviteeUsername} has registered under your link. You will receive your referral reward as soon as they start mining!`,
+          { parse_mode: 'HTML' }
         ).catch(() => {});
 
         // Notify invitee (referee)
-        await ctx.replyWithMarkdownV2(
-          `🔗 *Referral Linked\\!*\n\nYou have joined under sponsor *${escapeMarkdownV2(inviterName)}* \\(${inviterUsername}\\)\\. Welcome to the Elite Force team\\!`
+        await ctx.replyWithHTML(
+          `🔗 <b>Referral Linked!</b>\n\nYou have joined under sponsor <b>${escapeHTML(inviterName)}</b> (${inviterUsername}). Welcome to the Elite Force team!`,
+          { parse_mode: 'HTML' }
         ).catch(() => {});
 
       } catch (err) {
