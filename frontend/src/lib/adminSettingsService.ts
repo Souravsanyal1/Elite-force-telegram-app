@@ -32,10 +32,14 @@ export interface AdminSettings {
   withdrawMinReferrals: number; // min referrals to unlock withdraw
   withdrawMinAmount: number;    // min USDT to withdraw
 
-  // Ads
+  // Ads / Monetag
   adEnabled: boolean;
   adDailyLimit: number;
-  adRewardAmount: number;   // EForce per ad
+  adRewardAmount: number;   // EForce per ad watch
+  monetagZoneId: string;    // Monetag Zone ID
+  adRequireDailyClaim: boolean;
+  adRequireTasks: boolean;
+  adRequireAutoMiner: boolean;
 
   // Token Sale
   tokenSaleActive: boolean;
@@ -66,6 +70,10 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   adEnabled: false,
   adDailyLimit: 5,
   adRewardAmount: 100,
+  monetagZoneId: '123456',
+  adRequireDailyClaim: false,
+  adRequireTasks: false,
+  adRequireAutoMiner: false,
   tokenSaleActive: false,
   tokenSalePrice: 0.05,
   tokenSaleTotalSupply: 500000,

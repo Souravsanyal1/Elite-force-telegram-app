@@ -695,6 +695,54 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
                   </div>
                 ))}
 
+                {/* 📢 Monetag Sponsored Ads Setup */}
+                <div className="rounded-[20px] p-5 flex flex-col gap-0.5 animate-fade-in" style={panelStyle}>
+                  <span className="text-xs font-black text-[#00E5FF] mb-3">📢 Monetag Sponsored Ads Setup</span>
+                  
+                  <div className="flex items-center justify-between py-2.5 border-b border-white/[0.04]">
+                    <label className="text-xs text-slate-400">Enable Ads System</label>
+                    <button onClick={() => setSettings(prev => ({ ...prev, adEnabled: !prev.adEnabled }))} className={`w-11 h-6 rounded-full transition-all cursor-pointer relative ${settings.adEnabled ? 'bg-green-500' : 'bg-white/10'}`}>
+                      <div className="absolute top-[3px] bg-white rounded-full transition-all" style={{ width: 18, height: 18, left: settings.adEnabled ? 23 : 3 }} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 py-2.5 border-b border-white/[0.04]">
+                    <label className="text-xs text-slate-400">Monetag Zone ID</label>
+                    <input type="text" value={settings.monetagZoneId} onChange={e => setSettings(prev => ({ ...prev, monetagZoneId: e.target.value }))} className="w-40 h-8 rounded-lg px-3 text-xs text-white outline-none text-right transition-all" style={inputStyle} />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 py-2.5 border-b border-white/[0.04]">
+                    <label className="text-xs text-slate-400">Ad Reward Amount (EF Points)</label>
+                    <input type="number" value={settings.adRewardAmount} onChange={e => setSettings(prev => ({ ...prev, adRewardAmount: Number(e.target.value) }))} className="w-28 h-8 rounded-lg px-3 text-xs text-white outline-none text-right transition-all" style={inputStyle} />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 py-2.5 border-b border-white/[0.04]">
+                    <label className="text-xs text-slate-400">Daily Watch Limit</label>
+                    <input type="number" value={settings.adDailyLimit} onChange={e => setSettings(prev => ({ ...prev, adDailyLimit: Number(e.target.value) }))} className="w-28 h-8 rounded-lg px-3 text-xs text-white outline-none text-right transition-all" style={inputStyle} />
+                  </div>
+
+                  <div className="flex items-center justify-between py-2.5 border-b border-white/[0.04]">
+                    <label className="text-xs text-slate-400">Require Ad for Daily Check-in</label>
+                    <button onClick={() => setSettings(prev => ({ ...prev, adRequireDailyClaim: !prev.adRequireDailyClaim }))} className={`w-11 h-6 rounded-full transition-all cursor-pointer relative ${settings.adRequireDailyClaim ? 'bg-[#FF8A00]' : 'bg-white/10'}`}>
+                      <div className="absolute top-[3px] bg-white rounded-full transition-all" style={{ width: 18, height: 18, left: settings.adRequireDailyClaim ? 23 : 3 }} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between py-2.5 border-b border-white/[0.04]">
+                    <label className="text-xs text-slate-400">Require Ad to Complete Tasks</label>
+                    <button onClick={() => setSettings(prev => ({ ...prev, adRequireTasks: !prev.adRequireTasks }))} className={`w-11 h-6 rounded-full transition-all cursor-pointer relative ${settings.adRequireTasks ? 'bg-[#FF8A00]' : 'bg-white/10'}`}>
+                      <div className="absolute top-[3px] bg-white rounded-full transition-all" style={{ width: 18, height: 18, left: settings.adRequireTasks ? 23 : 3 }} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between py-2.5">
+                    <label className="text-xs text-slate-400">Require Ad to Start Auto Miner</label>
+                    <button onClick={() => setSettings(prev => ({ ...prev, adRequireAutoMiner: !prev.adRequireAutoMiner }))} className={`w-11 h-6 rounded-full transition-all cursor-pointer relative ${settings.adRequireAutoMiner ? 'bg-[#FF8A00]' : 'bg-white/10'}`}>
+                      <div className="absolute top-[3px] bg-white rounded-full transition-all" style={{ width: 18, height: 18, left: settings.adRequireAutoMiner ? 23 : 3 }} />
+                    </button>
+                  </div>
+                </div>
+
                 <div className="rounded-[20px] p-5" style={panelStyle}>
                   <span className="text-xs font-black text-white block mb-3">📅 Daily Check-in Rewards</span>
                   <div className="grid grid-cols-4 gap-2">

@@ -4,12 +4,15 @@ import { Check, Loader2, Send, Twitter, Globe, Compass, Play, Megaphone, Star, L
 import confetti from 'canvas-confetti';
 import { subscribeToTasks, subscribeToUserTasks, claimTaskReward, type EForceTask, type TaskType } from '../lib/taskService';
 import type { TelegramUser } from '../lib/telegramUser';
+import { type AdminSettings } from '../lib/adminSettingsService';
+import { showRewardedAd } from '../lib/monetag';
 
 interface TasksProps {
   efcBalance: number;
   setEfcBalance: (val: number | ((prev: number) => number)) => void;
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   telegramUser: TelegramUser | null;
+  adminSettings: AdminSettings;
 }
 
 const taskTypeIcon = (type: TaskType) => {
@@ -53,7 +56,7 @@ const taskTypeColor = (type: TaskType) => {
 
 type TaskStatus = 'idle' | 'verifying' | 'completed';
 
-export const Tasks = ({ setEfcBalance, showToast, telegramUser }: TasksProps) => {
+export const Tasks = ({ setEfcBalance, showToast, telegramUser, adminSettings }: TasksProps) => {
   const [tasks, setTasks] = useState<EForceTask[]>([]);
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(new Set());
   const [taskStatus, setTaskStatus] = useState<Record<string, TaskStatus>>({});
@@ -86,6 +89,17 @@ export const Tasks = ({ setEfcBalance, showToast, telegramUser }: TasksProps) =>
     }
     const currentStatus = taskStatus[task.id] || 'idle';
     if (currentStatus !== 'idle' || completedTaskIds.has(task.id)) return;
+
+    // Show rewarded ad first if configured globally in admin
+    if (adminSettings.adEnabled && adminSettings.adRequireTasks) {
+      try {
+        showToast('Loading sponsored video...', 'info');
+        await showRewardedAd(adminSettings.monetagZoneId);
+      } catch (err: any) {
+        showToast(err.message || 'Ad dismissed. Complete the ad to verify!', 'error');
+        return;
+      }
+    }
 
     // Open external URL if available
     if (task.url) {

@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Trophy, Flame, ChevronRight, Zap, Play, Square } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getDisplayName, type TelegramUser } from '../lib/telegramUser';
-import { getLeaderboardUsers, recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, subscribeToUser, markUserStarted, upsertUser, type FirestoreUser } from '../lib/userService';
+import { getLeaderboardUsers, recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, subscribeToUser, markUserStarted, upsertUser, syncPointsToFirestore, type FirestoreUser } from '../lib/userService';
 import { type AdminSettings } from '../lib/adminSettingsService';
 import { VerifiedBadge } from '../components/VerifiedBadge';
+import { showRewardedAd } from '../lib/monetag';
 
 interface HomeProps {
   efcBalance: number;
@@ -95,6 +96,23 @@ export const Home: React.FC<HomeProps> = ({
     setDailyStreak(streak);
   }, []);
 
+  // Track ad watches per day
+  const [adWatchesToday, setAdWatchesToday] = useState(0);
+  const [watchingAd, setWatchingAd] = useState(false);
+
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const lastAdDate = localStorage.getItem('lastAdWatchDate');
+    const count = Number(localStorage.getItem('adWatchCount') || '0');
+    if (lastAdDate === today) {
+      setAdWatchesToday(count);
+    } else {
+      localStorage.setItem('lastAdWatchDate', today);
+      localStorage.setItem('adWatchCount', '0');
+      setAdWatchesToday(0);
+    }
+  }, []);
+
   // Auto miner cooldown check from localStorage
   useEffect(() => {
     const lastUsed = localStorage.getItem('autoMinerLastUsed');
@@ -164,6 +182,17 @@ export const Home: React.FC<HomeProps> = ({
     if (!telegramUser) {
       showToast('Open in Telegram to claim daily reward.', 'warning');
       return;
+    }
+
+    // Show rewarded ad first if configured globally in admin
+    if (settings.adEnabled && settings.adRequireDailyClaim) {
+      try {
+        showToast('Loading Daily Claim Sponsor Ad...', 'info');
+        await showRewardedAd(settings.monetagZoneId);
+      } catch (err: any) {
+        showToast(err.message || 'Ad dismissed. Complete the ad to claim daily reward!', 'error');
+        return;
+      }
     }
 
     setClaimingDaily(true);
@@ -236,6 +265,17 @@ export const Home: React.FC<HomeProps> = ({
       return;
     }
 
+    // Show rewarded ad first if configured globally in admin
+    if (settings.adEnabled && settings.adRequireAutoMiner) {
+      try {
+        showToast('Loading sponsored video to start miner...', 'info');
+        await showRewardedAd(settings.monetagZoneId);
+      } catch (err: any) {
+        showToast(err.message || 'Ad dismissed. Complete the ad to start miner!', 'error');
+        return;
+      }
+    }
+
     if (telegramUser) {
       const result = await startAutoMinerSession(telegramUser.id, settings.autoMinerCooldown);
       if (!result.success) {
@@ -280,6 +320,44 @@ export const Home: React.FC<HomeProps> = ({
     setAutoMinerRunning(false);
     setAutoMinerSeconds(0);
     showToast('Auto Miner stopped.', 'info');
+  };
+
+  const handleWatchAdClick = async () => {
+    if (!telegramUser) {
+      showToast('Open in Telegram to earn with ads.', 'warning');
+      return;
+    }
+    if (adWatchesToday >= settings.adDailyLimit) {
+      showToast(`Daily limit reached! Come back tomorrow.`, 'warning');
+      return;
+    }
+    if (watchingAd) return;
+
+    setWatchingAd(true);
+    try {
+      showToast('Loading sponsored video...', 'info');
+      const completed = await showRewardedAd(settings.monetagZoneId);
+      if (completed) {
+        // Add point reward to user
+        const reward = settings.adRewardAmount || 100;
+        setEfcBalance(prev => prev + reward);
+        
+        // Save to Firestore by updating the user profile points
+        const updatedCount = adWatchesToday + 1;
+        setAdWatchesToday(updatedCount);
+        localStorage.setItem('adWatchCount', String(updatedCount));
+        
+        // We can use syncPointsToFirestore or custom updater
+        await syncPointsToFirestore(telegramUser.id, efcBalance + reward);
+        
+        showToast(`🎉 Ad watch complete! +${reward} EForce points added.`, 'success');
+        confetti({ particleCount: 40, spread: 45, origin: { y: 0.6 }, colors: ['#FF8A00', '#00E5FF'] });
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Ad skipped or dismissed.', 'error');
+    } finally {
+      setWatchingAd(false);
+    }
   };
 
   useEffect(() => {
@@ -479,6 +557,43 @@ export const Home: React.FC<HomeProps> = ({
           })}
         </div>
       </div>
+
+      {/* Sponsored Ads (Monetag) */}
+      {settings.adEnabled && (
+        <div className="glass-panel p-4 rounded-[22px] border-white/6 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Sponsored Ads</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-xs font-black text-white">Watch & Earn Points</span>
+              </div>
+            </div>
+            <button
+              onClick={handleWatchAdClick}
+              disabled={watchingAd || adWatchesToday >= settings.adDailyLimit}
+              className={`h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                adWatchesToday >= settings.adDailyLimit
+                  ? 'bg-white/5 text-slate-500 border border-white/10 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-accent-blue to-accent-cyan text-white shadow-[0_0_12px_rgba(0,229,255,0.25)]'
+              }`}
+            >
+              {watchingAd ? (
+                <span className="w-3 h-3 border-2 border-t-transparent border-white rounded-full animate-spin" />
+              ) : (
+                'Watch Ad'
+              )}
+            </button>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] text-slate-400">
+              Reward: <span className="text-accent-cyan font-bold">+{settings.adRewardAmount} EF Points</span>
+            </span>
+            <span className="text-[9px] text-slate-500 font-bold">
+              Today: {adWatchesToday}/{settings.adDailyLimit} completed
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Auto Miner */}
       <div className="glass-panel p-4 rounded-[22px] border-white/6 flex flex-col gap-3">

@@ -368,6 +368,7 @@ export default function App() {
             setEfcBalance={setEfcBalance} 
             showToast={showToast}
             telegramUser={telegramUser}
+            adminSettings={adminSettings}
           />
         );
       case 'referral':
