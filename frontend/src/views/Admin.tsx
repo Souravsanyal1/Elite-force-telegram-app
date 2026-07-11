@@ -407,49 +407,53 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
 
           {/* Edit User Modal */}
           {editingUser && (
-            <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4">
-              <div className="glass-panel p-5 rounded-[24px] border-white/8 w-full max-w-[420px] flex flex-col gap-4">
+            <div className="fixed inset-0 bg-black/70 z-50 flex items-end md:items-center justify-center p-4">
+              <div className="glass-panel p-6 md:p-8 rounded-[28px] border-white/8 w-full max-w-[420px] md:max-w-[650px] flex flex-col gap-5 shadow-2xl">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-black text-white">Edit: {editingUser.firstName}</h3>
-                  <button onClick={() => setEditingUser(null)} className="text-slate-400 hover:text-white cursor-pointer">
-                    <X size={16} />
+                  <h3 className="text-base md:text-lg font-black text-white uppercase tracking-wide">Edit User: {editingUser.firstName}</h3>
+                  <button onClick={() => setEditingUser(null)} className="text-slate-400 hover:text-white cursor-pointer transition-colors">
+                    <X size={20} />
                   </button>
                 </div>
-                {[
-                  { label: 'EForce Points', value: editPoints, set: setEditPoints },
-                  { label: 'EForce Tokens', value: editTokens, set: setEditTokens },
-                  { label: 'USDT Balance', value: editWallet, set: setEditWallet },
-                  { label: 'Referrals', value: editReferrals, set: setEditReferrals },
-                ].map(field => (
-                  <div key={field.label} className="flex flex-col gap-1">
-                    <label className="text-[9px] text-slate-500 uppercase tracking-wider font-bold">{field.label}</label>
-                    <input
-                      type="number"
-                      value={field.value}
-                      onChange={e => field.set(Number(e.target.value))}
-                      className="bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-accent-cyan"
-                    />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { label: 'EForce Points', value: editPoints, set: setEditPoints },
+                    { label: 'EForce Tokens', value: editTokens, set: setEditTokens },
+                    { label: 'USDT Balance', value: editWallet, set: setEditWallet },
+                    { label: 'Referrals', value: editReferrals, set: setEditReferrals },
+                  ].map(field => (
+                    <div key={field.label} className="flex flex-col gap-1.5">
+                      <label className="text-xs text-slate-400 font-bold uppercase tracking-wide">{field.label}</label>
+                      <input
+                        type="number"
+                        value={field.value}
+                        onChange={e => field.set(Number(e.target.value))}
+                        className="bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan transition-all"
+                      />
+                    </div>
+                  ))}
+                  <div className="flex flex-col gap-1.5 md:col-span-2">
+                    <label className="text-xs text-slate-400 font-bold uppercase tracking-wide">Risk Level</label>
+                    <select
+                      value={editRiskLevel}
+                      onChange={e => setEditRiskLevel(e.target.value as 'safe' | 'medium' | 'high')}
+                      className="bg-[#12182D] border border-white/8 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan cursor-pointer"
+                    >
+                      <option value="safe">🟢 Safe</option>
+                      <option value="medium">🟡 Medium</option>
+                      <option value="high">🔴 High Risk</option>
+                    </select>
                   </div>
-                ))}
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] text-slate-500 uppercase tracking-wider font-bold">Risk Level</label>
-                  <select
-                    value={editRiskLevel}
-                    onChange={e => setEditRiskLevel(e.target.value as 'safe' | 'medium' | 'high')}
-                    className="bg-[#12182D] border border-white/8 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-accent-cyan"
-                  >
-                    <option value="safe">🟢 Safe</option>
-                    <option value="medium">🟡 Medium</option>
-                    <option value="high">🔴 High Risk</option>
-                  </select>
                 </div>
+
                 <button
                   onClick={handleSaveUser}
                   disabled={savingUser}
-                  className="w-full h-10 bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="w-full h-12 bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white text-sm font-extrabold rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all shadow-md mt-2"
                 >
-                  {savingUser ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-                  {savingUser ? 'Saving...' : 'Save Changes'}
+                  {savingUser ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+                  {savingUser ? 'Saving Changes...' : 'Save User Changes'}
                 </button>
               </div>
             </div>
@@ -472,51 +476,53 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
 
           {/* Task Form Modal */}
           {showTaskForm && (
-            <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4">
-              <div className="glass-panel p-5 rounded-[24px] border-white/8 w-full max-w-[420px] flex flex-col gap-3 max-h-[80vh] overflow-y-auto">
+            <div className="fixed inset-0 bg-black/70 z-50 flex items-end md:items-center justify-center p-4">
+              <div className="glass-panel p-6 md:p-8 rounded-[28px] border-white/8 w-full max-w-[420px] md:max-w-[650px] flex flex-col gap-4 max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-black text-white">{editingTask ? 'Edit Task' : 'New Task'}</h3>
-                  <button onClick={() => setShowTaskForm(false)} className="text-slate-400 hover:text-white cursor-pointer"><X size={16} /></button>
+                  <h3 className="text-base md:text-lg font-black text-white uppercase tracking-wide">{editingTask ? 'Edit Task' : 'New Task'}</h3>
+                  <button onClick={() => setShowTaskForm(false)} className="text-slate-400 hover:text-white cursor-pointer transition-colors"><X size={20} /></button>
                 </div>
 
-                {[
-                  { label: 'Title', key: 'title', type: 'text' },
-                  { label: 'Description', key: 'description', type: 'text' },
-                  { label: 'URL (optional)', key: 'url', type: 'text' },
-                  { label: 'EForce Reward', key: 'reward', type: 'number' },
-                  { label: 'Daily Limit (0 = unlimited)', key: 'dailyLimit', type: 'number' },
-                  { label: 'Total Limit (0 = unlimited)', key: 'totalCompletionLimit', type: 'number' },
-                  { label: 'Expiry Date (optional)', key: 'expiryDate', type: 'date' },
-                ].map(f => (
-                  <div key={f.key} className="flex flex-col gap-1">
-                    <label className="text-[9px] text-slate-500 uppercase tracking-wider font-bold">{f.label}</label>
-                    <input
-                      type={f.type}
-                      value={(taskForm as any)[f.key]}
-                      onChange={e => setTaskForm(prev => ({ ...prev, [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value }))}
-                      className="bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-accent-cyan"
-                    />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { label: 'Title', key: 'title', type: 'text' },
+                    { label: 'Description', key: 'description', type: 'text' },
+                    { label: 'URL (optional)', key: 'url', type: 'text' },
+                    { label: 'EForce Reward', key: 'reward', type: 'number' },
+                    { label: 'Daily Limit (0 = unlimited)', key: 'dailyLimit', type: 'number' },
+                    { label: 'Total Limit (0 = unlimited)', key: 'totalCompletionLimit', type: 'number' },
+                    { label: 'Expiry Date (optional)', key: 'expiryDate', type: 'date' },
+                  ].map(f => (
+                    <div key={f.key} className={`flex flex-col gap-1.5 ${f.key === 'description' ? 'md:col-span-2' : ''}`}>
+                      <label className="text-xs text-slate-400 font-bold uppercase tracking-wide">{f.label}</label>
+                      <input
+                        type={f.type}
+                        value={(taskForm as any)[f.key]}
+                        onChange={e => setTaskForm(prev => ({ ...prev, [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value }))}
+                        className="bg-white/5 border border-white/8 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white outline-none focus:border-accent-cyan transition-all"
+                      />
+                    </div>
+                  ))}
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs text-slate-400 font-bold uppercase tracking-wide">Task Type</label>
+                    <select
+                      value={taskForm.type}
+                      onChange={e => setTaskForm(prev => ({ ...prev, type: e.target.value as TaskType }))}
+                      className="bg-[#12182D] border border-white/8 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white outline-none cursor-pointer"
+                    >
+                      <option value="channel">Telegram Channel</option>
+                      <option value="group">Telegram Group</option>
+                      <option value="x">Follow on X</option>
+                      <option value="website">Visit Website</option>
+                      <option value="video">Watch Video</option>
+                      <option value="daily">Daily Mission</option>
+                      <option value="ad">Reward Ad</option>
+                    </select>
                   </div>
-                ))}
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] text-slate-500 uppercase tracking-wider font-bold">Task Type</label>
-                  <select
-                    value={taskForm.type}
-                    onChange={e => setTaskForm(prev => ({ ...prev, type: e.target.value as TaskType }))}
-                    className="bg-[#12182D] border border-white/8 rounded-xl px-3 py-2 text-xs text-white outline-none"
-                  >
-                    <option value="channel">Telegram Channel</option>
-                    <option value="group">Telegram Group</option>
-                    <option value="x">Follow on X</option>
-                    <option value="website">Visit Website</option>
-                    <option value="video">Watch Video</option>
-                    <option value="daily">Daily Mission</option>
-                    <option value="ad">Reward Ad</option>
-                  </select>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-4 mt-2">
                   {[
                     { label: 'Enabled', key: 'isEnabled' },
                     { label: 'Auto Approve', key: 'autoApprove' },
@@ -524,13 +530,13 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
                     <button
                       key={f.key}
                       onClick={() => setTaskForm(prev => ({ ...prev, [f.key]: !(prev as any)[f.key] }))}
-                      className={`flex-1 h-8 rounded-xl border text-[9px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                      className={`flex-1 h-10 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all ${
                         (taskForm as any)[f.key]
                           ? 'bg-accent-success/15 border-accent-success/25 text-accent-success'
                           : 'bg-white/5 border-white/10 text-slate-400'
                       }`}
                     >
-                      {(taskForm as any)[f.key] ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
+                      {(taskForm as any)[f.key] ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
                       {f.label}
                     </button>
                   ))}
@@ -538,9 +544,9 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
 
                 <button
                   onClick={handleSaveTask}
-                  className="w-full h-10 bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full h-12 bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-white text-sm font-extrabold rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md mt-2"
                 >
-                  <Save size={14} /> {editingTask ? 'Update Task' : 'Create Task'}
+                  <Save size={16} /> {editingTask ? 'Update Task Details' : 'Create New Task'}
                 </button>
               </div>
             </div>
