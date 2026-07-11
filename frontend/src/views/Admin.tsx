@@ -324,7 +324,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
           </div>
 
           {/* Search */}
-          <div className="flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5">
+          <div className="flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-2.5 py-1.5 max-w-md">
             <Search size={12} className="text-slate-500 shrink-0" />
             <input
               type="text"
@@ -336,7 +336,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
           </div>
 
           {/* User List */}
-          <div className="flex flex-col gap-2 max-h-[360px] md:max-h-[600px] overflow-y-auto pr-0.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-[360px] md:max-h-[600px] overflow-y-auto pr-0.5 custom-scrollbar">
             {usersList
               .filter(u =>
                 (u.firstName + ' ' + u.lastName).toLowerCase().includes(userSearch.toLowerCase()) ||
@@ -547,7 +547,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
           )}
 
           {/* Task List */}
-          <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {tasks.map(task => (
               <div key={task.id} className={`glass-panel p-3.5 rounded-[18px] border-white/5 ${!task.isEnabled ? 'opacity-50' : ''}`}>
                 <div className="flex items-start justify-between gap-2">
@@ -596,7 +596,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
             ))}
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {withdrawals
               .filter(w => withdrawFilter === 'all' || w.status === withdrawFilter)
               .map((req) => (
@@ -660,7 +660,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
           {/* Flagged Users List */}
           <div className="glass-panel p-4 rounded-[20px] border-white/6">
             <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold block mb-3">Flagged Users</span>
-            <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {usersList.filter(u => u.flagCount > 0).map(u => (
                 <div key={u.telegramId} className="flex items-center justify-between bg-white/[0.02] border border-accent-warning/15 rounded-xl p-2.5">
                   <div>
