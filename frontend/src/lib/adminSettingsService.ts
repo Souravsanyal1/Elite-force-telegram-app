@@ -40,6 +40,9 @@ export interface AdminSettings {
   adRequireDailyClaim: boolean;
   adRequireTasks: boolean;
   adRequireAutoMiner: boolean;
+  adTokenReward: number;         // Tokens reward per ad watch task
+  adDailyLimitNormal: number;    // Ad watch limit normal
+  adDailyLimitPremium: number;   // Ad watch limit premium
 
   // Token Sale
   tokenSaleActive: boolean;
@@ -74,6 +77,9 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   adRequireDailyClaim: false,
   adRequireTasks: false,
   adRequireAutoMiner: false,
+  adTokenReward: 1,
+  adDailyLimitNormal: 10,
+  adDailyLimitPremium: 20,
   tokenSaleActive: false,
   tokenSalePrice: 0.05,
   tokenSaleTotalSupply: 500000,

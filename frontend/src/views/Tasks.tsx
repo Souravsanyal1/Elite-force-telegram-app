@@ -6,6 +6,7 @@ import { subscribeToTasks, subscribeToUserTasks, claimTaskReward, type EForceTas
 import type { TelegramUser } from '../lib/telegramUser';
 import { type AdminSettings } from '../lib/adminSettingsService';
 import { showRewardedAd } from '../lib/monetag';
+import { claimDailyAdVideoReward, type FirestoreUser } from '../lib/userService';
 
 interface TasksProps {
   efcBalance: number;
@@ -13,6 +14,7 @@ interface TasksProps {
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   telegramUser: TelegramUser | null;
   adminSettings: AdminSettings;
+  dbUser: FirestoreUser | null;
 }
 
 const taskTypeIcon = (type: TaskType) => {
@@ -56,7 +58,7 @@ const taskTypeColor = (type: TaskType) => {
 
 type TaskStatus = 'idle' | 'verifying' | 'completed';
 
-export const Tasks = ({ setEfcBalance, showToast, telegramUser, adminSettings }: TasksProps) => {
+export const Tasks = ({ setEfcBalance, showToast, telegramUser, adminSettings, dbUser }: TasksProps) => {
   const [tasks, setTasks] = useState<EForceTask[]>([]);
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(new Set());
   const [taskStatus, setTaskStatus] = useState<Record<string, TaskStatus>>({});
@@ -121,6 +123,58 @@ export const Tasks = ({ setEfcBalance, showToast, telegramUser, adminSettings }:
     } else {
       setTaskStatus(prev => ({ ...prev, [task.id]: 'idle' }));
       showToast(result.reason || 'Verification failed. Try again.', 'error');
+    }
+  };
+
+  const [watchingDailyVideo, setWatchingDailyVideo] = useState(false);
+
+  const handleWatchDailyVideo = async () => {
+    if (!telegramUser) {
+      showToast('Please open in Telegram to watch video ads.', 'warning');
+      return;
+    }
+
+    if (!adminSettings.adEnabled) {
+      showToast('Video ads system is currently offline.', 'info');
+      return;
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const lastAdDate = dbUser?.dailyAdWatchDate || '';
+    const adCount = lastAdDate === todayStr ? (dbUser?.dailyAdWatchCount || 0) : 0;
+    const isPremium = !!telegramUser.isPremium;
+    const limit = isPremium ? adminSettings.adDailyLimitPremium : adminSettings.adDailyLimitNormal;
+
+    if (adCount >= limit) {
+      showToast(`Daily limit of ${limit} ads reached!`, 'warning');
+      return;
+    }
+
+    setWatchingDailyVideo(true);
+    try {
+      showToast('Loading sponsored video ad...', 'info');
+      const completed = await showRewardedAd(adminSettings.monetagZoneId);
+      if (completed) {
+        // Securely claim tokens from Firestore backend
+        const result = await claimDailyAdVideoReward(
+          telegramUser.id,
+          isPremium,
+          adminSettings.adTokenReward || 1,
+          adminSettings.adDailyLimitNormal || 10,
+          adminSettings.adDailyLimitPremium || 20
+        );
+
+        if (result.success) {
+          showToast(`🎉 Ad completed! +${adminSettings.adTokenReward || 1} EForce Tokens added!`, 'success');
+          confetti({ particleCount: 60, spread: 50, origin: { y: 0.65 }, colors: ['#00E5FF', '#B388FF'] });
+        } else {
+          showToast(result.reason || 'Verification failed.', 'error');
+        }
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Ad dismissed or skipped.', 'error');
+    } finally {
+      setWatchingDailyVideo(false);
     }
   };
 
@@ -194,6 +248,72 @@ export const Tasks = ({ setEfcBalance, showToast, telegramUser, adminSettings }:
         </div>
       ) : (
         <div className="flex flex-col gap-3">
+          {/* Daily Sponsored Video Ads (Monetag) */}
+          {adminSettings.adEnabled && (activeFilter === 'all' || activeFilter === 'ad') && (() => {
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const lastAdDate = dbUser?.dailyAdWatchDate || '';
+            const adCount = lastAdDate === todayStr ? (dbUser?.dailyAdWatchCount || 0) : 0;
+            const isPremium = !!telegramUser?.isPremium;
+            const limit = isPremium ? (adminSettings.adDailyLimitPremium || 20) : (adminSettings.adDailyLimitNormal || 10);
+            const isLimitReached = adCount >= limit;
+
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`glass-panel p-4 rounded-[20px] border-white/6 flex items-center gap-3.5 transition-all ${
+                  isLimitReached ? 'opacity-60' : ''
+                }`}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(0, 229, 255, 0.05) 0%, rgba(0, 229, 255, 0.01) 100%)',
+                  borderColor: 'rgba(0, 229, 255, 0.15)',
+                }}
+              >
+                {/* Icon */}
+                <div className="w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0 border border-accent-cyan/20 bg-accent-cyan/10 text-accent-cyan shadow-[0_0_12px_rgba(0,229,255,0.15)]">
+                  <Play size={14} className="fill-current" />
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="text-[11px] font-black text-white truncate">Daily Sponsored Video Ads</span>
+                    {isPremium && <span className="text-[7px] font-black text-[#00E5FF] bg-[#00E5FF]/10 px-1 py-0.5 rounded border border-[#00E5FF]/20 uppercase">Premium Boost</span>}
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[9px] text-slate-400">
+                      Earn <span className="text-accent-purple font-black">+{adminSettings.adTokenReward || 1} EST Tokens</span> per video watch
+                    </span>
+                    <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wide">
+                      Watched Today: {adCount}/{limit} ({limit - adCount} remaining)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Action */}
+                <button
+                  onClick={handleWatchDailyVideo}
+                  disabled={watchingDailyVideo || isLimitReached}
+                  className={`shrink-0 w-24 h-8 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer
+                    ${isLimitReached
+                      ? 'bg-accent-success/15 text-accent-success border border-accent-success/25'
+                      : watchingDailyVideo
+                      ? 'bg-white/5 text-slate-400 border border-white/10 cursor-wait'
+                      : 'bg-gradient-to-r from-accent-cyan to-accent-blue text-white shadow-[0_0_12px_rgba(0,229,255,0.3)]'
+                    }`}
+                >
+                  {isLimitReached ? (
+                    <><Check size={12} /> Limit Met</>
+                  ) : watchingDailyVideo ? (
+                    <><Loader2 size={12} className="animate-spin" /> Loading...</>
+                  ) : (
+                    'Watch Video'
+                  )}
+                </button>
+              </motion.div>
+            );
+          })()}
+
           <AnimatePresence>
             {filteredTasks.map((task, i) => {
               const status = taskStatus[task.id] || 'idle';

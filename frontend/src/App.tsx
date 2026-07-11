@@ -370,6 +370,7 @@ export default function App() {
             showToast={showToast}
             telegramUser={telegramUser}
             adminSettings={adminSettings}
+            dbUser={dbUser}
           />
         );
       case 'referral':

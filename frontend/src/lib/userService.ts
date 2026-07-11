@@ -55,6 +55,8 @@ export interface FirestoreUser {
   // Daily Check-in
   dailyClaimStreak: number;
   lastClaimDate: string | null; // ISO date "YYYY-MM-DD"
+  dailyAdWatchDate?: string | null;
+  dailyAdWatchCount?: number;
 
   // Auto Miner
   autoMinerLastUsed: unknown | null;
@@ -247,6 +249,59 @@ export const syncPointsToFirestore = async (telegramId: number, points: number):
   try {
     await updateDoc(userRef, { points });
   } catch { /* noop */ }
+};
+
+/**
+ * Claims a rewarded ad watch tokens reward.
+ * Normal limit is 10, premium is 20. Reward token count is loaded from settings.
+ */
+export const claimDailyAdVideoReward = async (
+  telegramId: number,
+  isPremium: boolean,
+  tokenReward: number,
+  limitNormal: number,
+  limitPremium: number
+): Promise<{ success: boolean; countToday: number; reason?: string }> => {
+  if (!isFirebaseConfigured()) {
+    return { success: true, countToday: 1 };
+  }
+
+  const userRef = doc(db, USERS_COLLECTION, String(telegramId));
+  try {
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) {
+      return { success: false, countToday: 0, reason: 'User not initialized.' };
+    }
+
+    const userData = snap.data() as any;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const lastAdDate = userData.dailyAdWatchDate || '';
+    let adCount = userData.dailyAdWatchCount || 0;
+
+    if (lastAdDate !== todayStr) {
+      adCount = 0;
+    }
+
+    const limit = isPremium ? limitPremium : limitNormal;
+    if (adCount >= limit) {
+      return { success: false, countToday: adCount, reason: `Daily limit of ${limit} video ads reached.` };
+    }
+
+    const nextAdCount = adCount + 1;
+    const currentTokens = userData.tokens || 0;
+    const updatedTokens = currentTokens + tokenReward;
+
+    await updateDoc(userRef, {
+      tokens: updatedTokens,
+      dailyAdWatchDate: todayStr,
+      dailyAdWatchCount: nextAdCount,
+    });
+
+    return { success: true, countToday: nextAdCount };
+  } catch (err) {
+    console.error("Error in claimDailyAdVideoReward:", err);
+    return { success: false, countToday: 0, reason: 'Network error. Please try again.' };
+  }
 };
 
 /**

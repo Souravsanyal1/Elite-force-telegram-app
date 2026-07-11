@@ -717,8 +717,18 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
                   </div>
 
                   <div className="flex items-center justify-between gap-4 py-2.5 border-b border-white/[0.04]">
-                    <label className="text-xs text-slate-400">Daily Watch Limit</label>
-                    <input type="number" value={settings.adDailyLimit} onChange={e => setSettings(prev => ({ ...prev, adDailyLimit: Number(e.target.value) }))} className="w-28 h-8 rounded-lg px-3 text-xs text-white outline-none text-right transition-all" style={inputStyle} />
+                    <label className="text-xs text-slate-400">Sponsored Ad Reward (Tokens)</label>
+                    <input type="number" value={settings.adTokenReward} onChange={e => setSettings(prev => ({ ...prev, adTokenReward: Number(e.target.value) }))} className="w-28 h-8 rounded-lg px-3 text-xs text-white outline-none text-right transition-all" style={inputStyle} />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 py-2.5 border-b border-white/[0.04]">
+                    <label className="text-xs text-slate-400">Daily Video Ads Limit (Normal)</label>
+                    <input type="number" value={settings.adDailyLimitNormal} onChange={e => setSettings(prev => ({ ...prev, adDailyLimitNormal: Number(e.target.value) }))} className="w-28 h-8 rounded-lg px-3 text-xs text-white outline-none text-right transition-all" style={inputStyle} />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 py-2.5 border-b border-white/[0.04]">
+                    <label className="text-xs text-slate-400">Daily Video Ads Limit (Premium)</label>
+                    <input type="number" value={settings.adDailyLimitPremium} onChange={e => setSettings(prev => ({ ...prev, adDailyLimitPremium: Number(e.target.value) }))} className="w-28 h-8 rounded-lg px-3 text-xs text-white outline-none text-right transition-all" style={inputStyle} />
                   </div>
 
                   <div className="flex items-center justify-between py-2.5 border-b border-white/[0.04]">
