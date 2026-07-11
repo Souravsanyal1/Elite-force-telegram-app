@@ -408,7 +408,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
           {/* Edit User Modal */}
           {editingUser && (
             <div className="fixed inset-0 bg-black/70 z-50 flex items-end md:items-center justify-center p-4">
-              <div className="glass-panel p-6 md:p-8 rounded-[28px] border-white/8 w-full max-w-[420px] md:max-w-[650px] flex flex-col gap-5 shadow-2xl">
+              <div className="bg-[#0c0f24] border border-white/10 p-6 md:p-8 rounded-[28px] w-full max-w-[420px] md:max-w-[650px] flex flex-col gap-5 shadow-2xl">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base md:text-lg font-black text-white uppercase tracking-wide">Edit User: {editingUser.firstName}</h3>
                   <button onClick={() => setEditingUser(null)} className="text-slate-400 hover:text-white cursor-pointer transition-colors">
@@ -477,7 +477,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
           {/* Task Form Modal */}
           {showTaskForm && (
             <div className="fixed inset-0 bg-black/70 z-50 flex items-end md:items-center justify-center p-4">
-              <div className="glass-panel p-6 md:p-8 rounded-[28px] border-white/8 w-full max-w-[420px] md:max-w-[650px] flex flex-col gap-4 max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl">
+              <div className="bg-[#0c0f24] border border-white/10 p-6 md:p-8 rounded-[28px] w-full max-w-[420px] md:max-w-[650px] flex flex-col gap-4 max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base md:text-lg font-black text-white uppercase tracking-wide">{editingTask ? 'Edit Task' : 'New Task'}</h3>
                   <button onClick={() => setShowTaskForm(false)} className="text-slate-400 hover:text-white cursor-pointer transition-colors"><X size={20} /></button>
