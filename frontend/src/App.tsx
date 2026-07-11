@@ -424,6 +424,8 @@ export default function App() {
             dbUser={dbUser}
             showToast={showToast}
             telegramUser={telegramUser}
+            adminSettings={adminSettings}
+            setUsdtBalance={setUsdtBalance}
           />
         );
       case 'leaderboard':
