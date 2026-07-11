@@ -5,6 +5,7 @@ import {
   RefreshCw, Shield, Plus, Trash2, ToggleLeft, ToggleRight,
   Settings, DollarSign, Zap, Star,
 } from 'lucide-react';
+import { VerifiedBadge } from '../components/VerifiedBadge';
 import {
   getAllUsers, updateUserDatabaseValues, getTotalUserCount,
   getTodayNewUsersCount, getFlaggedUsersCount, getBannedUsersCount,
@@ -373,6 +374,7 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm md:text-base font-bold text-white truncate">{u.firstName} {u.lastName}</span>
+                        <VerifiedBadge size={13} className="shrink-0" />
                         {u.isTelegramPremium && <Star size={12} className="text-accent-cyan fill-current shrink-0" />}
                         {u.banStatus !== 'none' && <span className="text-[10px] text-accent-danger font-extrabold uppercase bg-accent-danger/10 px-2 py-0.5 border border-accent-danger/25 rounded">BANNED</span>}
                         {u.flagCount > 0 && <span className="text-[10px] text-accent-warning font-extrabold bg-accent-warning/10 px-2 py-0.5 border border-accent-warning/25 rounded">🚩{u.flagCount}</span>}
