@@ -28,11 +28,12 @@ export const Referral: React.FC<ReferralProps> = ({
   const [_loadingReferrals, setLoadingReferrals] = useState(false);
   void _loadingReferrals;
   const settings = adminSettings;
+  const botUser = settings.botUsername || 'EliteForceBot';
 
   // Get real referral link
   const referralLink = telegramUser
-    ? getReferralLink(telegramUser.id)
-    : 'https://t.me/EliteForceBot?start=ref_0';
+    ? getReferralLink(telegramUser.id, botUser)
+    : `https://t.me/${botUser}?start=ref_0`;
 
   // Load referral records from Firestore
   useEffect(() => {

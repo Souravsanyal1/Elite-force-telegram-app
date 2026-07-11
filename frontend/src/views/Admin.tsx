@@ -692,6 +692,12 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
                         </button>
                       </div>
                     )}
+                    {section.title.includes('Referral') && (
+                      <div className="flex items-center justify-between gap-4 py-2.5 border-t border-white/[0.04] mt-1.5">
+                        <label className="text-xs text-slate-400">Telegram Bot Username (Ref Links)</label>
+                        <input type="text" value={settings.botUsername} onChange={e => setSettings(prev => ({ ...prev, botUsername: e.target.value }))} className="w-40 h-8 rounded-lg px-3 text-xs text-white outline-none text-right transition-all" style={inputStyle} />
+                      </div>
+                    )}
                   </div>
                 ))}
 

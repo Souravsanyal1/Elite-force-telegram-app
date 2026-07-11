@@ -53,6 +53,9 @@ export interface AdminSettings {
 
   // Swap
   swapOpen: boolean;
+
+  // Bot Username
+  botUsername: string;
 }
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
@@ -86,6 +89,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   tokenSaleMinPurchase: 10,
   tokenSaleMaxPurchase: 1000,
   swapOpen: false,
+  botUsername: 'EliteForceBot',
 };
 
 const SETTINGS_DOC = 'adminSettings/config';
