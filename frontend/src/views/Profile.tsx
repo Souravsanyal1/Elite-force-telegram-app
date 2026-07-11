@@ -3,7 +3,7 @@ import { Trophy, Calendar, Globe2, Laptop, ShieldCheck, CheckCircle, ShieldAlert
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { getDisplayName, type TelegramUser } from '../lib/telegramUser';
-import { type FirestoreUser, updateWalletAddress, submitWithdrawRequest } from '../lib/userService';
+import { type FirestoreUser, updateWalletAddress, submitWithdrawRequest, updateUserDatabaseValues } from '../lib/userService';
 import { VerifiedBadge } from '../components/VerifiedBadge';
 
 import { type AdminSettings } from '../lib/adminSettingsService';
@@ -29,6 +29,7 @@ export const Profile = ({ efcBalance, dbUser, showToast, telegramUser, adminSett
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('0.20');
+  const [withdrawAsset, setWithdrawAsset] = useState<'usdt' | 'token'>('usdt');
 
   useEffect(() => {
     if (dbUser?.walletAddress) {
@@ -89,21 +90,37 @@ export const Profile = ({ efcBalance, dbUser, showToast, telegramUser, adminSett
       setIsVerifying(true);
       setTimeout(async () => {
         const amountNum = parseFloat(withdrawAmount);
-        const minWithdraw = adminSettings.withdrawMinAmount;
+        const minWithdrawUsdt = adminSettings.withdrawMinAmount;
         const usdtBalance = dbUser?.wallet || 0;
+        const eforceTokens = dbUser?.tokens || 0;
 
-        if (isNaN(amountNum) || amountNum < minWithdraw) {
-          setIsVerifying(false);
-          setPin('');
-          showToast(`Minimum withdrawal is $${minWithdraw} USDT.`, 'error');
-          return;
-        }
-
-        if (usdtBalance < amountNum) {
-          setIsVerifying(false);
-          setPin('');
-          showToast('Insufficient USDT balance.', 'error');
-          return;
+        if (withdrawAsset === 'usdt') {
+          if (isNaN(amountNum) || amountNum < minWithdrawUsdt) {
+            setIsVerifying(false);
+            setPin('');
+            showToast(`Minimum withdrawal is $${minWithdrawUsdt} USDT.`, 'error');
+            return;
+          }
+          if (usdtBalance < amountNum) {
+            setIsVerifying(false);
+            setPin('');
+            showToast('Insufficient USDT balance.', 'error');
+            return;
+          }
+        } else {
+          const minWithdrawTokens = minWithdrawUsdt / (adminSettings.eforceTokenValue || 0.05);
+          if (isNaN(amountNum) || amountNum < minWithdrawTokens) {
+            setIsVerifying(false);
+            setPin('');
+            showToast(`Minimum withdrawal is ${minWithdrawTokens.toFixed(3)} EF.`, 'error');
+            return;
+          }
+          if (eforceTokens < amountNum) {
+            setIsVerifying(false);
+            setPin('');
+            showToast('Insufficient EForce tokens balance.', 'error');
+            return;
+          }
         }
 
         if (!telegramUser || !dbUser) {
@@ -117,15 +134,24 @@ export const Profile = ({ efcBalance, dbUser, showToast, telegramUser, adminSett
           telegramUser.id,
           telegramUser.username || `user_${telegramUser.id}`,
           dbUser.walletAddress,
-          amountNum
+          amountNum,
+          withdrawAsset
         );
 
         setIsVerifying(false);
 
         if (res.success) {
           setIsSuccess(true);
-          setUsdtBalance(prev => Math.max(0, prev - amountNum));
-          showToast(`Withdrawal request of $${amountNum} USDT submitted!`, 'success');
+          if (withdrawAsset === 'usdt') {
+            const newWalletBalance = Math.max(0, usdtBalance - amountNum);
+            setUsdtBalance(newWalletBalance);
+            updateUserDatabaseValues(telegramUser.id, { wallet: newWalletBalance }).catch(() => {});
+            showToast(`Withdrawal request of $${amountNum} USDT submitted!`, 'success');
+          } else {
+            const newTokenBalance = Math.max(0, eforceTokens - amountNum);
+            updateUserDatabaseValues(telegramUser.id, { tokens: newTokenBalance }).catch(() => {});
+            showToast(`Withdrawal request of ${amountNum.toFixed(3)} EForce Tokens submitted!`, 'success');
+          }
           
           confetti({
             particleCount: 80,
@@ -432,6 +458,38 @@ export const Profile = ({ efcBalance, dbUser, showToast, telegramUser, adminSett
               </div>
 
               <div className="mb-4">
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold block mb-1.5">Select Asset to Withdraw</span>
+                <div className="grid grid-cols-2 gap-2 mb-3.5">
+                  <button
+                    onClick={() => {
+                      setWithdrawAsset('usdt');
+                      setWithdrawAmount((dbUser?.wallet || 0).toFixed(2));
+                    }}
+                    type="button"
+                    className={`h-9 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                      withdrawAsset === 'usdt'
+                        ? 'bg-accent-success/10 border-accent-success text-accent-success'
+                        : 'bg-white/5 border-white/8 text-slate-400'
+                    }`}
+                  >
+                    USDT (${(dbUser?.wallet || 0).toFixed(2)})
+                  </button>
+                  <button
+                    onClick={() => {
+                      setWithdrawAsset('token');
+                      setWithdrawAmount((dbUser?.tokens || 0).toFixed(3));
+                    }}
+                    type="button"
+                    className={`h-9 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                      withdrawAsset === 'token'
+                        ? 'bg-accent-purple/10 border-accent-purple text-accent-purple'
+                        : 'bg-white/5 border-white/8 text-slate-400'
+                    }`}
+                  >
+                    EForce ({(dbUser?.tokens || 0).toFixed(3)})
+                  </button>
+                </div>
+
                 <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold block mb-1.5">Configure Amount</span>
                 <div className="flex gap-2 items-center">
                   <div className="flex-1 flex items-center bg-white/5 border border-white/7 rounded-xl p-2.5">
@@ -441,11 +499,13 @@ export const Profile = ({ efcBalance, dbUser, showToast, telegramUser, adminSett
                       onChange={(e) => setWithdrawAmount(e.target.value)}
                       className="bg-transparent border-none outline-none text-sm font-bold text-white w-full"
                     />
-                    <span className="text-xs font-bold text-accent-success shrink-0">USDT</span>
+                    <span className={`text-xs font-bold shrink-0 ${withdrawAsset === 'usdt' ? 'text-accent-success' : 'text-accent-purple'}`}>
+                      {withdrawAsset === 'usdt' ? 'USDT' : 'EF'}
+                    </span>
                   </div>
                   <div className="flex flex-col text-[10px] text-slate-500 leading-none gap-1 pr-1">
-                    <span>Max: ${(dbUser?.wallet || 0).toFixed(2)}</span>
-                    <span className="text-accent-cyan cursor-pointer" onClick={() => setWithdrawAmount((dbUser?.wallet || 0).toFixed(2))}>Set Max</span>
+                    <span>Max: {withdrawAsset === 'usdt' ? `$${(dbUser?.wallet || 0).toFixed(2)}` : `${(dbUser?.tokens || 0).toFixed(3)} EF`}</span>
+                    <span className="text-accent-cyan cursor-pointer font-bold" onClick={() => setWithdrawAmount(withdrawAsset === 'usdt' ? (dbUser?.wallet || 0).toFixed(2) : (dbUser?.tokens || 0).toFixed(3))}>Set Max</span>
                   </div>
                 </div>
               </div>

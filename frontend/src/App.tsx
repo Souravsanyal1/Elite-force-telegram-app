@@ -11,7 +11,7 @@ import { Leaderboard } from './views/Leaderboard';
 import { Admin } from './views/Admin';
 import { AdminLogin } from './views/AdminLogin';
 import { getTelegramWebAppData, type TelegramUser } from './lib/telegramUser';
-import { upsertUser, setUserOffline, syncPointsToFirestore, getOnlineUserCount, subscribeToUser, checkUserBan, type FirestoreUser } from './lib/userService';
+import { upsertUser, setUserOffline, syncPointsToFirestore, getOnlineUserCount, subscribeToUser, checkUserBan, updateUserDatabaseValues, type FirestoreUser } from './lib/userService';
 import { subscribeToAdminSettings, DEFAULT_ADMIN_SETTINGS, type AdminSettings } from './lib/adminSettingsService';
 import { auth, isFirebaseConfigured } from './lib/firebase';
 
@@ -226,6 +226,19 @@ export default function App() {
     return () => clearTimeout(timeout);
   }, [efcBalance, telegramUser]);
 
+  // Sync EForce tokens to Firestore when balance changes
+  useEffect(() => {
+    if (!telegramUser) return;
+    const isRealTelegramUser = !!(window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (!isRealTelegramUser && !isLocalhost && !bypassTelegramCheck) return;
+
+    const timeout = setTimeout(() => {
+      updateUserDatabaseValues(telegramUser.id, { tokens: eforceTokens }).catch(() => {});
+    }, 3000); // debounce 3s
+    return () => clearTimeout(timeout);
+  }, [eforceTokens, telegramUser]);
+
   // Subscribe to real-time user document changes in Firestore
   useEffect(() => {
     if (!telegramUser) return;
@@ -242,6 +255,7 @@ export default function App() {
           lastSyncedPointsRef.current = user.points ?? 0;
         }
         setUsdtBalance(user.wallet ?? 0);
+        setEforceTokens(user.tokens ?? 0);
         setReferralsCount(user.referrals ?? 0);
       }
     });
