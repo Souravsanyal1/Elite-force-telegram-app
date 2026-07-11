@@ -344,56 +344,56 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
                 String(u.telegramId).includes(userSearch)
               )
               .map((u) => (
-                <div key={u.telegramId} className="glass-panel p-3 rounded-[16px] border-white/5">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-full bg-[#1A1F37] border border-white/10 shrink-0 flex items-center justify-center text-xs font-bold text-slate-300 overflow-hidden">
+                <div key={u.telegramId} className="glass-panel p-5 md:p-6 rounded-[22px] border-white/5 shadow-md flex flex-col gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-[#1A1F37] border border-white/10 shrink-0 flex items-center justify-center text-sm md:text-base font-bold text-slate-300 overflow-hidden">
                       {u.photoUrl
                         ? <img src={u.photoUrl} alt="" className="w-full h-full object-cover" />
                         : (u.firstName?.[0] ?? 'E').toUpperCase()
                       }
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-bold text-white truncate">{u.firstName} {u.lastName}</span>
-                        {u.isTelegramPremium && <Star size={9} className="text-accent-cyan shrink-0" />}
-                        {u.banStatus !== 'none' && <span className="text-[8px] text-accent-danger font-bold">BANNED</span>}
-                        {u.flagCount > 0 && <span className="text-[8px] text-accent-warning font-bold">🚩{u.flagCount}</span>}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm md:text-base font-bold text-white truncate">{u.firstName} {u.lastName}</span>
+                        {u.isTelegramPremium && <Star size={12} className="text-accent-cyan fill-current shrink-0" />}
+                        {u.banStatus !== 'none' && <span className="text-[10px] text-accent-danger font-extrabold uppercase bg-accent-danger/10 px-2 py-0.5 border border-accent-danger/25 rounded">BANNED</span>}
+                        {u.flagCount > 0 && <span className="text-[10px] text-accent-warning font-extrabold bg-accent-warning/10 px-2 py-0.5 border border-accent-warning/25 rounded">🚩{u.flagCount}</span>}
                       </div>
-                      <span className="text-[9px] text-slate-500">@{u.username || 'no_username'} • {u.telegramId}</span>
+                      <span className="text-xs text-slate-400 block mt-1">@{u.username || 'no_username'} • {u.telegramId}</span>
                     </div>
-                    <div className="flex flex-col items-end gap-0.5">
-                      <span className="text-[9px] font-black text-accent-cyan">{(u.points || 0).toLocaleString()} EF</span>
-                      <span className="text-[8px] text-slate-500">${u.wallet ?? 0} USDT</span>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className="text-xs md:text-sm font-black text-accent-cyan">{(u.points || 0).toLocaleString()} EF</span>
+                      <span className="text-[10px] md:text-xs text-slate-400 font-bold">${(u.wallet ?? 0).toFixed(2)} USDT</span>
                     </div>
                   </div>
 
                   {/* Action buttons */}
-                  <div className="flex gap-1.5 mt-2.5">
+                  <div className="flex gap-2">
                     <button
                       onClick={() => startEditUser(u)}
-                      className="flex-1 h-7 rounded-lg bg-white/5 border border-white/8 text-[9px] font-bold text-slate-300 hover:text-white flex items-center justify-center gap-1 transition-all cursor-pointer"
+                      className="flex-1 h-9 rounded-xl bg-white/5 border border-white/8 text-xs font-bold text-slate-300 hover:text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                     >
-                      <Edit3 size={9} /> Edit
+                      <Edit3 size={12} /> Edit
                     </button>
                     <button
                       onClick={() => handleFlagUser(u)}
-                      className="flex-1 h-7 rounded-lg bg-accent-warning/10 border border-accent-warning/20 text-[9px] font-bold text-accent-warning hover:bg-accent-warning/20 flex items-center justify-center gap-1 transition-all cursor-pointer"
+                      className="flex-1 h-9 rounded-xl bg-accent-warning/10 border border-accent-warning/20 text-xs font-bold text-accent-warning hover:bg-accent-warning/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                     >
                       🚩 Flag
                     </button>
                     {u.banStatus !== 'none' ? (
                       <button
                         onClick={() => handleUnbanUser(u)}
-                        className="flex-1 h-7 rounded-lg bg-accent-success/10 border border-accent-success/20 text-[9px] font-bold text-accent-success hover:bg-accent-success/20 flex items-center justify-center gap-1 transition-all cursor-pointer"
+                        className="flex-1 h-9 rounded-xl bg-accent-success/10 border border-accent-success/20 text-xs font-bold text-accent-success hover:bg-accent-success/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                       >
-                        <Check size={9} /> Unban
+                        <Check size={12} /> Unban
                       </button>
                     ) : (
                       <button
                         onClick={() => handleBanUser(u)}
-                        className="flex-1 h-7 rounded-lg bg-accent-danger/10 border border-accent-danger/20 text-[9px] font-bold text-accent-danger hover:bg-accent-danger/20 flex items-center justify-center gap-1 transition-all cursor-pointer"
+                        className="flex-1 h-9 rounded-xl bg-accent-danger/10 border border-accent-danger/20 text-xs font-bold text-accent-danger hover:bg-accent-danger/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                       >
-                        <Ban size={9} /> Ban
+                        <Ban size={12} /> Ban
                       </button>
                     )}
                   </div>
@@ -549,21 +549,23 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
           {/* Task List */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {tasks.map(task => (
-              <div key={task.id} className={`glass-panel p-3.5 rounded-[18px] border-white/5 ${!task.isEnabled ? 'opacity-50' : ''}`}>
-                <div className="flex items-start justify-between gap-2">
+              <div key={task.id} className={`glass-panel p-5 md:p-6 rounded-[22px] border-white/5 shadow-md hover:border-white/10 transition-all flex flex-col justify-between min-h-[110px] ${!task.isEnabled ? 'opacity-50' : ''}`}>
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <span className="text-[11px] font-bold text-white block truncate">{task.title}</span>
-                    <span className="text-[9px] text-slate-500">{task.type} • +{task.reward} EF • {task.completedCount} completions</span>
+                    <span className="text-sm md:text-base font-extrabold text-white block truncate">{task.title}</span>
+                    <span className="text-[10px] md:text-xs text-slate-400 block mt-1.5 font-medium">
+                      <span className="uppercase font-black text-accent-cyan tracking-wider">{task.type}</span> • +{task.reward} EF • {task.completedCount} completions
+                    </span>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button onClick={() => handleToggleTask(task)} className="text-slate-400 hover:text-accent-cyan cursor-pointer">
-                      {task.isEnabled ? <ToggleRight size={14} className="text-accent-success" /> : <ToggleLeft size={14} />}
+                  <div className="flex items-center gap-2.5 shrink-0 pt-0.5">
+                    <button onClick={() => handleToggleTask(task)} className="text-slate-400 hover:text-accent-cyan cursor-pointer transition-colors">
+                      {task.isEnabled ? <ToggleRight size={20} className="text-accent-success" /> : <ToggleLeft size={20} />}
                     </button>
-                    <button onClick={() => startEditTask(task)} className="text-slate-400 hover:text-white cursor-pointer">
-                      <Edit3 size={12} />
+                    <button onClick={() => startEditTask(task)} className="text-slate-400 hover:text-white cursor-pointer transition-colors">
+                      <Edit3 size={16} />
                     </button>
-                    <button onClick={() => handleDeleteTask(task)} className="text-slate-400 hover:text-accent-danger cursor-pointer">
-                      <Trash2 size={12} />
+                    <button onClick={() => handleDeleteTask(task)} className="text-slate-400 hover:text-accent-danger cursor-pointer transition-colors">
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </div>
@@ -600,35 +602,36 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
             {withdrawals
               .filter(w => withdrawFilter === 'all' || w.status === withdrawFilter)
               .map((req) => (
-                <div key={req.id} className="glass-panel p-3.5 rounded-[18px] border-white/5">
-                  <div className="flex items-start justify-between gap-2 mb-2">
+                <div key={req.id} className="glass-panel p-5 md:p-6 rounded-[22px] border-white/5 shadow-md flex flex-col gap-4">
+                  <div className="flex items-start justify-between gap-3">
                     <div>
-                      <span className="text-[10px] font-bold text-white block">@{req.username || 'Unknown'}</span>
-                      <span className="text-[9px] text-slate-500">{req.walletAddress?.slice(0, 10)}...{req.walletAddress?.slice(-6)}</span>
+                      <span className="text-sm md:text-base font-bold text-white block">@{req.username || 'Unknown'}</span>
+                      <span className="text-xs text-slate-400 font-mono block mt-1">{req.walletAddress?.slice(0, 10)}...{req.walletAddress?.slice(-6)}</span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[11px] font-black text-accent-success">${req.amount} USDT</span>
-                      <span className={`block text-[8px] font-bold ${
-                        req.status === 'Pending' ? 'text-accent-warning' :
-                        req.status === 'Approved' ? 'text-accent-success' :
-                        req.status === 'Banned' ? 'text-accent-danger' : 'text-slate-400'
+                    <div className="text-right shrink-0">
+                      <span className="text-sm md:text-lg font-black text-accent-success block">${req.amount} USDT</span>
+                      <span className={`inline-block text-[10px] font-extrabold uppercase px-2 py-0.5 rounded border mt-1.5 ${
+                        req.status === 'Pending' ? 'bg-accent-warning/10 border-accent-warning/25 text-accent-warning' :
+                        req.status === 'Approved' ? 'bg-accent-success/10 border-accent-success/25 text-accent-success' :
+                        req.status === 'Banned' ? 'bg-accent-danger/10 border-accent-danger/25 text-accent-danger' :
+                        'bg-white/5 border-white/10 text-slate-400'
                       }`}>{req.status}</span>
                     </div>
                   </div>
 
                   {req.status === 'Pending' && (
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-2">
                       <button onClick={() => handleWithdrawAction(req.id, 'Approved')}
-                        className="flex-1 h-7 bg-accent-success/15 border border-accent-success/25 text-accent-success text-[9px] font-bold rounded-xl flex items-center justify-center gap-1 cursor-pointer">
-                        <Check size={9} /> Approve
+                        className="flex-1 h-9 bg-accent-success/15 border border-accent-success/25 text-accent-success text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-accent-success/25 transition-all">
+                        <Check size={12} /> Approve
                       </button>
                       <button onClick={() => handleWithdrawAction(req.id, 'Rejected')}
-                        className="flex-1 h-7 bg-white/5 border border-white/10 text-slate-400 text-[9px] font-bold rounded-xl flex items-center justify-center gap-1 cursor-pointer">
-                        <X size={9} /> Reject
+                        className="flex-1 h-9 bg-white/5 border border-white/10 text-slate-400 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-white/10 transition-all">
+                        <X size={12} /> Reject
                       </button>
                       <button onClick={() => handleWithdrawAction(req.id, 'Banned')}
-                        className="flex-1 h-7 bg-accent-danger/10 border border-accent-danger/20 text-accent-danger text-[9px] font-bold rounded-xl flex items-center justify-center gap-1 cursor-pointer">
-                        <Ban size={9} /> Ban
+                        className="flex-1 h-9 bg-accent-danger/10 border border-accent-danger/20 text-accent-danger text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-accent-danger/20 transition-all">
+                        <Ban size={12} /> Ban
                       </button>
                     </div>
                   )}
@@ -662,18 +665,18 @@ export const Admin: React.FC<AdminProps> = ({ showToast, liveUserCount }) => {
             <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold block mb-3">Flagged Users</span>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {usersList.filter(u => u.flagCount > 0).map(u => (
-                <div key={u.telegramId} className="flex items-center justify-between bg-white/[0.02] border border-accent-warning/15 rounded-xl p-2.5">
+                <div key={u.telegramId} className="flex items-center justify-between bg-white/[0.02] border border-accent-warning/15 rounded-2xl p-4 md:p-5">
                   <div>
-                    <span className="text-[10px] font-bold text-white">{u.firstName} {u.lastName}</span>
-                    <span className="text-[9px] text-slate-500 block">🚩 {u.flagCount} flags • Risk: {u.riskLevel}</span>
+                    <span className="text-sm font-bold text-white block">{u.firstName} {u.lastName}</span>
+                    <span className="text-xs text-slate-400 block mt-1">🚩 {u.flagCount} flags • Risk: <span className="font-extrabold uppercase text-accent-warning">{u.riskLevel}</span></span>
                   </div>
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-2">
                     <button onClick={() => handleUnbanUser(u)}
-                      className="h-6 px-2 bg-accent-success/10 border border-accent-success/20 text-accent-success text-[8px] font-bold rounded-lg cursor-pointer">
+                      className="h-8 px-3.5 bg-accent-success/10 border border-accent-success/20 text-accent-success text-xs font-bold rounded-xl cursor-pointer hover:bg-accent-success/20 transition-all flex items-center justify-center">
                       Unban
                     </button>
                     <button onClick={() => handleBanUser(u)}
-                      className="h-6 px-2 bg-accent-danger/10 border border-accent-danger/20 text-accent-danger text-[8px] font-bold rounded-lg cursor-pointer">
+                      className="h-8 px-3.5 bg-accent-danger/10 border border-accent-danger/20 text-accent-danger text-xs font-bold rounded-xl cursor-pointer hover:bg-accent-danger/20 transition-all flex items-center justify-center">
                       Ban
                     </button>
                   </div>
