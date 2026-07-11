@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Trophy, Flame, ChevronRight, Zap, Play, Square } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getDisplayName, type TelegramUser } from '../lib/telegramUser';
-import { getLeaderboardUsers, recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, subscribeToUser, markUserStarted, upsertUser, syncPointsToFirestore, type FirestoreUser } from '../lib/userService';
+import { recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, subscribeToUser, markUserStarted, upsertUser, syncPointsToFirestore, type FirestoreUser } from '../lib/userService';
 import { type AdminSettings } from '../lib/adminSettingsService';
 import { VerifiedBadge } from '../components/VerifiedBadge';
 import { showRewardedAd } from '../lib/monetag';
@@ -19,6 +19,7 @@ interface HomeProps {
   showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   telegramUser: TelegramUser | null;
   adminSettings: AdminSettings;
+  setActiveTab: (tab: any) => void;
 }
 
 interface FloatingText {
@@ -39,6 +40,7 @@ export const Home: React.FC<HomeProps> = ({
   showToast,
   telegramUser,
   adminSettings: settings, // alias adminSettings to settings
+  setActiveTab,
 }) => {
   void usdtBalance;
   const [clicks, setClicks] = useState<FloatingText[]>([]);
@@ -59,11 +61,7 @@ export const Home: React.FC<HomeProps> = ({
   const autoMinerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoMinerCooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Leaderboard
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [dbUsers, setDbUsers] = useState<FirestoreUser[]>([]);
   const [dbUser, setDbUser] = useState<FirestoreUser | null>(null);
-  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
 
   // Subscribe to real-time user document changes in Firestore
   useEffect(() => {
@@ -71,21 +69,6 @@ export const Home: React.FC<HomeProps> = ({
     const unsubscribe = subscribeToUser(telegramUser.id, setDbUser);
     return unsubscribe;
   }, [telegramUser]);
-
-  // Load leaderboard dynamically when modal opens
-  useEffect(() => {
-    if (showLeaderboard) {
-      setLoadingLeaderboard(true);
-      getLeaderboardUsers(15)
-        .then((users) => {
-          setDbUsers(users);
-          setLoadingLeaderboard(false);
-        })
-        .catch(() => {
-          setLoadingLeaderboard(false);
-        });
-    }
-  }, [showLeaderboard]);
 
   // Check today's claim status from localStorage (quick check before Firestore)
   useEffect(() => {
@@ -660,7 +643,7 @@ export const Home: React.FC<HomeProps> = ({
 
       {/* Leaderboard Button */}
       <button
-        onClick={() => setShowLeaderboard(true)}
+        onClick={() => setActiveTab('leaderboard')}
         className="glass-panel p-4 rounded-[22px] border-white/6 flex items-center justify-between hover:bg-white/[0.04] transition-all cursor-pointer w-full"
       >
         <div className="flex items-center gap-3">
@@ -674,65 +657,6 @@ export const Home: React.FC<HomeProps> = ({
         </div>
         <ChevronRight size={14} className="text-slate-500" />
       </button>
-
-      {/* Leaderboard Modal */}
-      <AnimatePresence>
-        {showLeaderboard && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4"
-            onClick={() => setShowLeaderboard(false)}
-          >
-            <motion.div
-              initial={{ y: 80, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 80, opacity: 0 }}
-              onClick={e => e.stopPropagation()}
-              className="glass-panel w-full max-w-[420px] rounded-[28px] border-white/8 p-5 flex flex-col gap-4 max-h-[70vh] overflow-hidden"
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-black text-white flex items-center gap-2">
-                  <Trophy size={14} className="text-accent-purple" /> Top Miners
-                </h3>
-                <button onClick={() => setShowLeaderboard(false)} className="text-slate-400 hover:text-white cursor-pointer text-xs">Close</button>
-              </div>
-              <div className="flex flex-col gap-2 overflow-y-auto min-h-[150px] justify-center">
-                {loadingLeaderboard ? (
-                  <div className="flex flex-col items-center justify-center py-10 gap-2">
-                    <span className="w-6 h-6 border-2 border-t-transparent border-[#FF8A00] rounded-full animate-spin" />
-                    <span className="text-[10px] text-slate-500 font-semibold">Loading Leaderboard...</span>
-                  </div>
-                ) : dbUsers.length === 0 ? (
-                  <div className="text-center py-8 text-slate-500 text-xs">No miners yet. Be the first!</div>
-                ) : (
-                  dbUsers.map((u, i) => (
-                    <div key={u.telegramId} className="flex items-center gap-3 bg-white/[0.02] border border-white/4 rounded-[14px] p-2.5">
-                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
-                        i === 0 ? 'bg-[#FFD700]/20 text-[#FFD700]' :
-                        i === 1 ? 'bg-slate-300/20 text-slate-300' :
-                        i === 2 ? 'bg-[#CD7F32]/20 text-[#CD7F32]' :
-                        'bg-white/5 text-slate-500'
-                      }`}>{i + 1}</span>
-                      <div className="w-7 h-7 rounded-full bg-[#1A1F37] flex items-center justify-center text-[10px] font-bold text-slate-300 shrink-0 overflow-hidden">
-                        {u.photoUrl
-                          ? <img src={u.photoUrl} alt="" className="w-full h-full object-cover" />
-                          : (u.firstName?.[0] ?? 'E').toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-[10px] font-bold text-white truncate block">{u.firstName} {u.lastName}</span>
-                        <span className="text-[8px] text-slate-500">@{u.username || 'user'}</span>
-                      </div>
-                      <span className="text-[10px] font-black text-[#FF8A00] shrink-0">{(u.points || 0).toLocaleString()}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

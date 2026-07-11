@@ -7,7 +7,7 @@ import { Tasks } from './views/Tasks';
 import { Referral } from './views/Referral';
 import { Wallet } from './views/Wallet';
 import { Profile } from './views/Profile';
-import { Settings } from './views/Settings';
+import { Leaderboard } from './views/Leaderboard';
 import { Admin } from './views/Admin';
 import { AdminLogin } from './views/AdminLogin';
 import { getTelegramWebAppData, type TelegramUser } from './lib/telegramUser';
@@ -359,6 +359,7 @@ export default function App() {
             showToast={showToast}
             telegramUser={telegramUser}
             adminSettings={adminSettings}
+            setActiveTab={setActiveTab}
           />
         );
       case 'tasks':
@@ -407,8 +408,15 @@ export default function App() {
             telegramUser={telegramUser}
           />
         );
-      case 'settings':
-        return <Settings showToast={showToast} />;
+      case 'leaderboard':
+        return (
+          <Leaderboard 
+            telegramUser={telegramUser} 
+            efcBalance={efcBalance} 
+            showToast={showToast} 
+            swapRate={adminSettings.swapRate} 
+          />
+        );
       default:
         return null;
     }

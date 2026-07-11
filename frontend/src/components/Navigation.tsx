@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Home, CheckSquare, Gift, Wallet, User, Settings } from 'lucide-react';
+import { Home, CheckSquare, Gift, Wallet, User, Trophy } from 'lucide-react';
 
-export type ActiveTab = 'home' | 'tasks' | 'referral' | 'wallet' | 'profile' | 'settings' | 'admin';
+export type ActiveTab = 'home' | 'tasks' | 'referral' | 'wallet' | 'profile' | 'leaderboard' | 'admin';
 
 interface NavigationProps {
   activeTab: ActiveTab;
@@ -16,7 +16,7 @@ const tabs = [
   { id: 'referral' as ActiveTab,label: 'Invite',  icon: Gift },
   { id: 'wallet' as ActiveTab,  label: 'Wallet',  icon: Wallet },
   { id: 'profile' as ActiveTab, label: 'Profile', icon: User },
-  { id: 'settings' as ActiveTab,label: 'More',    icon: Settings },
+  { id: 'leaderboard' as ActiveTab, label: 'Miners', icon: Trophy },
 ];
 
 export const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab }) => {
