@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Trophy, Flame, ChevronRight, Zap, Play, Square, Star } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getDisplayName, type TelegramUser } from '../lib/telegramUser';
-import { recordTap } from '../lib/antiCheat';
 import { getLeaderboardUsers, recordDailyCheckin, startAutoMinerSession, endAutoMinerSession, subscribeToUser, markUserStarted, upsertUser, type FirestoreUser } from '../lib/userService';
 import { type AdminSettings } from '../lib/adminSettingsService';
 
@@ -40,7 +39,6 @@ export const Home: React.FC<HomeProps> = ({
   adminSettings: settings, // alias adminSettings to settings
 }) => {
   void usdtBalance;
-  const [isSpinning, setIsSpinning] = useState(false);
   const [clicks, setClicks] = useState<FloatingText[]>([]);
 
   // Combo system
@@ -124,7 +122,7 @@ export const Home: React.FC<HomeProps> = ({
     }, 1000);
   };
 
-  // Tap handler with anti-cheat
+  // Tap handler (Optimized for unlimited fast clicks)
   const handleCoinClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (energy <= 0) {
       showToast('No energy! Wait for regeneration.', 'warning');
@@ -133,35 +131,29 @@ export const Home: React.FC<HomeProps> = ({
 
     const now = Date.now();
     let nextCombo = 1;
-    if (now - lastTapTime < 800) nextCombo = combo + 1;
+    if (now - lastTapTime < 800) {
+      nextCombo = Math.min(combo + 1, 10);
+    }
     setCombo(nextCombo);
     setLastTapTime(now);
 
     let tapMultiplier = settings.tapReward || 1;
-    if (nextCombo > 25) tapMultiplier = (settings.tapReward || 1) * (settings.comboReward || 3);
-    else if (nextCombo > 10) tapMultiplier = (settings.tapReward || 1) * 2;
-
-    const { allowed, riskLevel, reason } = recordTap(tapMultiplier);
-    if (!allowed) {
-      showToast(reason ?? 'Anti-cheat triggered. Slow down!', 'warning');
-      return;
-    }
-    if (riskLevel === 'high') {
-      showToast('⚠️ High tap rate detected. Account flagged for review.', 'error');
+    if (nextCombo >= 10) {
+      tapMultiplier = (settings.tapReward || 1) * Math.min(settings.comboReward || 3, 10);
+    } else if (nextCombo > 5) {
+      tapMultiplier = (settings.tapReward || 1) * 2;
     }
 
-    setIsSpinning(true);
     setEfcBalance(prev => prev + tapMultiplier);
     setEnergy(prev => Math.max(prev - 1, 0));
 
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    const clickId = Date.now();
+    const clickId = Math.random(); // Use random for unique IDs during rapid clicks
     setClicks(prev => [...prev, { id: clickId, x, y, value: tapMultiplier }]);
 
-    setTimeout(() => setIsSpinning(false), 400);
-    setTimeout(() => setClicks(prev => prev.filter(c => c.id !== clickId)), 1000);
+    setTimeout(() => setClicks(prev => prev.filter(c => c.id !== clickId)), 800);
   };
 
   // Daily Check-in (Firestore + localStorage)
@@ -373,12 +365,10 @@ export const Home: React.FC<HomeProps> = ({
         </div>
 
         {/* Coin Tap */}
-        <motion.div
+        <div
           onClick={handleCoinClick}
           onContextMenu={(e) => e.preventDefault()}
-          animate={isSpinning ? { scale: 0.93, rotateY: 12 } : { scale: 1, rotateY: 0 }}
-          transition={{ duration: 0.13 }}
-          className="relative w-64 h-64 cursor-pointer select-none flex items-center justify-center coin-tap-container"
+          className="relative w-64 h-64 cursor-pointer select-none flex items-center justify-center coin-tap-container active:scale-95 transition-transform duration-75 ease-out"
           style={{ perspective: 900 }}
         >
           {/* Multi-layer ambient glow rings */}
@@ -425,7 +415,7 @@ export const Home: React.FC<HomeProps> = ({
               </motion.div>
             ))}
           </AnimatePresence>
-        </motion.div>
+        </div>
 
         {/* Combo indicator */}
         {combo > 5 && (
